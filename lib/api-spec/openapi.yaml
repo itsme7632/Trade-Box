@@ -1,22 +1,29 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TradeBox HYIP Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: shipments
+  - name: investments
+  - name: wallet
+  - name: tracker
+  - name: guild
+  - name: profile
+  - name: market
+  - name: admin
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +31,838 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  # SHIPMENTS
+  /shipments:
+    get:
+      operationId: listShipments
+      tags: [shipments]
+      summary: List available shipments
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [all, electronics, agricultural, minerals, textiles, pharma]
+        - name: riskGrade
+          in: query
+          schema:
+            type: string
+            enum: [A, B, C, D]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, funded, in_transit, delivered]
+      responses:
+        "200":
+          description: List of shipments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shipment"
+
+  /shipments/{id}:
+    get:
+      operationId: getShipment
+      tags: [shipments]
+      summary: Get shipment detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Shipment detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentDetail"
+        "404":
+          description: Not found
+
+  /shipments/{id}/fund:
+    post:
+      operationId: fundShipment
+      tags: [shipments]
+      summary: Fund a shipment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FundInput"
+      responses:
+        "200":
+          description: Investment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investment"
+        "400":
+          description: Insufficient balance or min not met
+
+  # INVESTMENTS (My Cargo)
+  /investments:
+    get:
+      operationId: listInvestments
+      tags: [investments]
+      summary: List my investments
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, delivered, all]
+      responses:
+        "200":
+          description: My investments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Investment"
+
+  /investments/{id}:
+    get:
+      operationId: getInvestment
+      tags: [investments]
+      summary: Get investment detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Investment detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investment"
+
+  # WALLET
+  /wallet/balance:
+    get:
+      operationId: getBalance
+      tags: [wallet]
+      summary: Get wallet balance
+      responses:
+        "200":
+          description: Balance info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalance"
+
+  /wallet/ledger:
+    get:
+      operationId: getLedger
+      tags: [wallet]
+      summary: Get transaction ledger
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, deposits, withdrawals, deliveries, guild]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, cleared, in_transit, reviewing]
+      responses:
+        "200":
+          description: Ledger entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LedgerEntry"
+
+  /wallet/deposit:
+    post:
+      operationId: submitDeposit
+      tags: [wallet]
+      summary: Submit a deposit proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositInput"
+      responses:
+        "201":
+          description: Deposit submitted for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerEntry"
+
+  /wallet/withdraw:
+    post:
+      operationId: submitWithdrawal
+      tags: [wallet]
+      summary: Submit a withdrawal request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawInput"
+      responses:
+        "201":
+          description: Withdrawal submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerEntry"
+        "400":
+          description: Insufficient balance
+
+  /wallet/crypto-addresses:
+    get:
+      operationId: getCryptoAddresses
+      tags: [wallet]
+      summary: Get deposit crypto addresses
+      responses:
+        "200":
+          description: Crypto addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CryptoAddress"
+
+  # TRACKER
+  /tracker/my-shipments:
+    get:
+      operationId: getTrackerShipments
+      tags: [tracker]
+      summary: Get active shipments with route positions for world map
+      responses:
+        "200":
+          description: Shipment positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrackerShipment"
+
+  /tracker/port-activity:
+    get:
+      operationId: getPortActivity
+      tags: [tracker]
+      summary: Get recent global port activity
+      responses:
+        "200":
+          description: Port activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PortActivity"
+
+  # GUILD (Referral)
+  /guild/stats:
+    get:
+      operationId: getGuildStats
+      tags: [guild]
+      summary: Get guild stats for current user
+      responses:
+        "200":
+          description: Guild stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuildStats"
+
+  /guild/referrals:
+    get:
+      operationId: getGuildReferrals
+      tags: [guild]
+      summary: Get guild referral tree
+      responses:
+        "200":
+          description: Referral list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GuildReferral"
+
+  /guild/commissions:
+    get:
+      operationId: getGuildCommissions
+      tags: [guild]
+      summary: Get commission earnings history
+      responses:
+        "200":
+          description: Commission history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LedgerEntry"
+
+  # PROFILE
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get full profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update profile settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /profile/kyc:
+    post:
+      operationId: submitKyc
+      tags: [profile]
+      summary: Submit KYC documents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KycInput"
+      responses:
+        "200":
+          description: KYC submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /profile/wallet-addresses:
+    patch:
+      operationId: updateWalletAddresses
+      tags: [profile]
+      summary: Update payout wallet addresses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletAddressesUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  # MARKET
+  /market/summary:
+    get:
+      operationId: getMarketSummary
+      tags: [market]
+      summary: Get market overview — portfolio totals, featured shipment, closing soon
+      responses:
+        "200":
+          description: Market summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSummary"
+
+  /market/commodity-prices:
+    get:
+      operationId: getCommodityPrices
+      tags: [market]
+      summary: Get live commodity prices
+      responses:
+        "200":
+          description: Commodity prices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommodityPrice"
+
+  /market/delivery-feed:
+    get:
+      operationId: getDeliveryFeed
+      tags: [market]
+      summary: Get recent delivery credit events
+      responses:
+        "200":
+          description: Delivery feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeliveryEvent"
+
+  /market/closing-soon:
+    get:
+      operationId: getClosingSoonShipments
+      tags: [market]
+      summary: Get shipments closing soon (nearly fully funded)
+      responses:
+        "200":
+          description: Closing soon
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shipment"
+
+  # ADMIN
+  /admin/deposits:
+    get:
+      operationId: adminListDeposits
+      tags: [admin]
+      summary: Admin — list pending deposits
+      responses:
+        "200":
+          description: Deposit list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminDeposit"
+
+  /admin/deposits/{id}/approve:
+    post:
+      operationId: adminApproveDeposit
+      tags: [admin]
+      summary: Admin — approve deposit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDeposit"
+
+  /admin/deposits/{id}/reject:
+    post:
+      operationId: adminRejectDeposit
+      tags: [admin]
+      summary: Admin — reject deposit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRejectInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDeposit"
+
+  /admin/withdrawals:
+    get:
+      operationId: adminListWithdrawals
+      tags: [admin]
+      summary: Admin — list pending withdrawals
+      responses:
+        "200":
+          description: Withdrawal list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminWithdrawal"
+
+  /admin/withdrawals/{id}/process:
+    post:
+      operationId: adminProcessWithdrawal
+      tags: [admin]
+      summary: Admin — mark withdrawal as processed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminProcessWithdrawalInput"
+      responses:
+        "200":
+          description: Processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWithdrawal"
+
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: Admin — list users
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: kycStatus
+          in: query
+          schema:
+            type: string
+            enum: [all, pending, approved, rejected]
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{id}:
+    get:
+      operationId: adminGetUser
+      tags: [admin]
+      summary: Admin — get user detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/users/{id}/credit-profit:
+    post:
+      operationId: adminCreditProfit
+      tags: [admin]
+      summary: Admin — manually credit profit to user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreditProfitInput"
+      responses:
+        "200":
+          description: Profit credited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+
+  /admin/kyc:
+    get:
+      operationId: adminListKyc
+      tags: [admin]
+      summary: Admin — list KYC submissions pending review
+      responses:
+        "200":
+          description: KYC list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminKyc"
+
+  /admin/kyc/{id}/approve:
+    post:
+      operationId: adminApproveKyc
+      tags: [admin]
+      summary: Admin — approve KYC
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminKyc"
+
+  /admin/kyc/{id}/reject:
+    post:
+      operationId: adminRejectKyc
+      tags: [admin]
+      summary: Admin — reject KYC
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRejectInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminKyc"
+
+  /admin/shipments:
+    get:
+      operationId: adminListShipments
+      tags: [admin]
+      summary: Admin — list all shipments
+      responses:
+        "200":
+          description: All shipments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShipmentDetail"
+
+    post:
+      operationId: adminCreateShipment
+      tags: [admin]
+      summary: Admin — create shipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShipmentInput"
+      responses:
+        "201":
+          description: Shipment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentDetail"
+
+  /admin/shipments/{id}:
+    patch:
+      operationId: adminUpdateShipment
+      tags: [admin]
+      summary: Admin — update shipment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShipmentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentDetail"
+
+  /admin/shipments/{id}/deliver:
+    post:
+      operationId: adminDeliverShipment
+      tags: [admin]
+      summary: Admin — mark shipment delivered and auto-credit profits
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delivered and profits credited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentDetail"
+
+  /admin/crypto-wallets:
+    get:
+      operationId: adminGetCryptoWallets
+      tags: [admin]
+      summary: Admin — get platform deposit wallet addresses
+      responses:
+        "200":
+          description: Wallet addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CryptoAddress"
+
+    patch:
+      operationId: adminUpdateCryptoWallets
+      tags: [admin]
+      summary: Admin — update platform deposit wallet addresses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CryptoWalletsUpdate"
+      responses:
+        "200":
+          description: Updated wallets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CryptoAddress"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Admin — platform stats overview
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +870,668 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # AUTH
+    RegisterInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        referralCode:
+          type: ["string", "null"]
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      required: [id, email, traderId, balance, role, createdAt]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        traderId:
+          type: string
+        balance:
+          type: number
+        role:
+          type: string
+          enum: [user, admin]
+        kycStatus:
+          type: string
+          enum: [none, pending, approved, rejected]
+        createdAt:
+          type: string
+
+    # SHIPMENT
+    Shipment:
+      type: object
+      required: [id, title, cargoType, origin, destination, profitPercent, riskGrade, fundingGoal, fundingRaised, minInvestment, departureDate, arrivalDate, transitDays, status, freightForwarder, vesselName]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        cargoType:
+          type: string
+          enum: [electronics, cocoa, lithium, coffee, textiles, pharmaceuticals, cotton, steel]
+        origin:
+          type: string
+        destination:
+          type: string
+        originCoords:
+          type: ["string", "null"]
+        destinationCoords:
+          type: ["string", "null"]
+        profitPercent:
+          type: number
+        riskGrade:
+          type: string
+          enum: [A, B, C, D]
+        fundingGoal:
+          type: number
+        fundingRaised:
+          type: number
+        minInvestment:
+          type: number
+        departureDate:
+          type: string
+        arrivalDate:
+          type: string
+        transitDays:
+          type: integer
+        status:
+          type: string
+          enum: [open, funded, in_transit, delivered]
+        freightForwarder:
+          type: string
+        vesselName:
+          type: string
+        createdAt:
+          type: string
+
+    ShipmentDetail:
+      allOf:
+        - $ref: "#/components/schemas/Shipment"
+        - type: object
+          properties:
+            hsCode:
+              type: ["string", "null"]
+            weightTons:
+              type: ["number", "null"]
+            volumeCbm:
+              type: ["number", "null"]
+            description:
+              type: ["string", "null"]
+            investorCount:
+              type: integer
+            myInvestment:
+              type: ["number", "null"]
+
+    ShipmentInput:
+      type: object
+      required: [title, cargoType, origin, destination, profitPercent, riskGrade, fundingGoal, minInvestment, departureDate, arrivalDate, freightForwarder, vesselName]
+      properties:
+        title:
+          type: string
+        cargoType:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        originCoords:
+          type: ["string", "null"]
+        destinationCoords:
+          type: ["string", "null"]
+        profitPercent:
+          type: number
+        riskGrade:
+          type: string
+        fundingGoal:
+          type: number
+        minInvestment:
+          type: number
+        departureDate:
+          type: string
+        arrivalDate:
+          type: string
+        freightForwarder:
+          type: string
+        vesselName:
+          type: string
+        hsCode:
+          type: ["string", "null"]
+        weightTons:
+          type: ["number", "null"]
+        volumeCbm:
+          type: ["number", "null"]
+        description:
+          type: ["string", "null"]
+
+    ShipmentUpdate:
+      type: object
+      properties:
+        title:
+          type: ["string", "null"]
+        profitPercent:
+          type: ["number", "null"]
+        riskGrade:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+        arrivalDate:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+
+    FundInput:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+
+    # INVESTMENTS
+    Investment:
+      type: object
+      required: [id, shipmentId, amount, profitPercent, status, createdAt]
+      properties:
+        id:
+          type: integer
+        shipmentId:
+          type: integer
+        shipment:
+          $ref: "#/components/schemas/Shipment"
+        amount:
+          type: number
+        profitPercent:
+          type: number
+        expectedProfit:
+          type: number
+        actualProfit:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [active, delivered, cancelled]
+        createdAt:
+          type: string
+        deliveredAt:
+          type: ["string", "null"]
+
+    # WALLET
+    WalletBalance:
+      type: object
+      required: [balance, totalDeposited, totalWithdrawn, totalProfits, totalInvested]
+      properties:
+        balance:
+          type: number
+        totalDeposited:
+          type: number
+        totalWithdrawn:
+          type: number
+        totalProfits:
+          type: number
+        totalInvested:
+          type: number
+
+    LedgerEntry:
+      type: object
+      required: [id, type, amount, status, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [deposit, withdrawal, delivery_profit, guild_commission]
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [cleared, in_transit, reviewing, rejected]
+        description:
+          type: ["string", "null"]
+        txid:
+          type: ["string", "null"]
+        coin:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    DepositInput:
+      type: object
+      required: [coin, amount, txid]
+      properties:
+        coin:
+          type: string
+        amount:
+          type: number
+        txid:
+          type: string
+        proofUrl:
+          type: ["string", "null"]
+
+    WithdrawInput:
+      type: object
+      required: [coin, amount, walletAddress]
+      properties:
+        coin:
+          type: string
+        amount:
+          type: number
+        walletAddress:
+          type: string
+
+    CryptoAddress:
+      type: object
+      required: [coin, address, network]
+      properties:
+        coin:
+          type: string
+        address:
+          type: string
+        network:
+          type: string
+
+    # TRACKER
+    TrackerShipment:
+      type: object
+      required: [id, shipmentId, vesselName, origin, destination, originCoords, destinationCoords, progressPercent, etaDays, myAmount]
+      properties:
+        id:
+          type: integer
+        shipmentId:
+          type: integer
+        vesselName:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        originCoords:
+          type: string
+        destinationCoords:
+          type: string
+        progressPercent:
+          type: number
+        etaDays:
+          type: integer
+        myAmount:
+          type: number
+        cargoType:
+          type: string
+
+    PortActivity:
+      type: object
+      required: [id, portName, country, eventType, vesselName, timestamp]
+      properties:
+        id:
+          type: integer
+        portName:
+          type: string
+        country:
+          type: string
+        eventType:
+          type: string
+          enum: [arrival, departure]
+        vesselName:
+          type: string
+        cargoType:
+          type: ["string", "null"]
+        timestamp:
+          type: string
+
+    # GUILD
+    GuildStats:
+      type: object
+      required: [guildCode, tier1Count, tier2Count, tier3Count, tier1Earnings, tier2Earnings, tier3Earnings, totalEarnings, rank, totalVolumeFunded]
+      properties:
+        guildCode:
+          type: string
+        tier1Count:
+          type: integer
+        tier2Count:
+          type: integer
+        tier3Count:
+          type: integer
+        tier1Earnings:
+          type: number
+        tier2Earnings:
+          type: number
+        tier3Earnings:
+          type: number
+        totalEarnings:
+          type: number
+        rank:
+          type: string
+          enum: [Merchant, Trader, Broker, Magnate]
+        totalVolumeFunded:
+          type: number
+        nextRankAt:
+          type: ["number", "null"]
+
+    GuildReferral:
+      type: object
+      required: [id, traderId, email, tier, joinedAt, volumeFunded]
+      properties:
+        id:
+          type: integer
+        traderId:
+          type: string
+        email:
+          type: string
+        tier:
+          type: integer
+        joinedAt:
+          type: string
+        volumeFunded:
+          type: number
+
+    # PROFILE
+    Profile:
+      type: object
+      required: [id, email, traderId, kycStatus, telegramHandle, whatsappNumber, twoFactorEnabled, walletAddresses, traderStats]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        traderId:
+          type: string
+        kycStatus:
+          type: string
+          enum: [none, pending, approved, rejected]
+        telegramHandle:
+          type: ["string", "null"]
+        whatsappNumber:
+          type: ["string", "null"]
+        twoFactorEnabled:
+          type: boolean
+        walletAddresses:
+          type: object
+        traderStats:
+          $ref: "#/components/schemas/TraderStats"
+
+    TraderStats:
+      type: object
+      required: [totalShipped, totalProfit, countriesTraded, activeInvestments, deliveredInvestments]
+      properties:
+        totalShipped:
+          type: number
+        totalProfit:
+          type: number
+        countriesTraded:
+          type: integer
+        activeInvestments:
+          type: integer
+        deliveredInvestments:
+          type: integer
+
+    ProfileUpdate:
+      type: object
+      properties:
+        telegramHandle:
+          type: ["string", "null"]
+        whatsappNumber:
+          type: ["string", "null"]
+        twoFactorEnabled:
+          type: ["boolean", "null"]
+
+    KycInput:
+      type: object
+      required: [idDocumentUrl, selfieUrl]
+      properties:
+        idDocumentUrl:
+          type: string
+        selfieUrl:
+          type: string
+        proofOfAddressUrl:
+          type: ["string", "null"]
+
+    WalletAddressesUpdate:
+      type: object
+      properties:
+        btc:
+          type: ["string", "null"]
+        eth:
+          type: ["string", "null"]
+        usdt:
+          type: ["string", "null"]
+        bnb:
+          type: ["string", "null"]
+
+    # MARKET
+    MarketSummary:
+      type: object
+      required: [portfolioValue, activeInvestments, totalProfit, featuredShipment]
+      properties:
+        portfolioValue:
+          type: number
+        activeInvestments:
+          type: integer
+        totalProfit:
+          type: number
+        totalShipped:
+          type: number
+        featuredShipment:
+          $ref: "#/components/schemas/Shipment"
+
+    CommodityPrice:
+      type: object
+      required: [symbol, name, price, change24h, unit]
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        change24h:
+          type: number
+        unit:
+          type: string
+
+    DeliveryEvent:
+      type: object
+      required: [id, traderId, shipmentTitle, amount, profit, deliveredAt]
+      properties:
+        id:
+          type: integer
+        traderId:
+          type: string
+        shipmentTitle:
+          type: string
+        amount:
+          type: number
+        profit:
+          type: number
+        deliveredAt:
+          type: string
+
+    # ADMIN
+    AdminDeposit:
+      type: object
+      required: [id, userId, traderId, email, coin, amount, txid, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        traderId:
+          type: string
+        email:
+          type: string
+        coin:
+          type: string
+        amount:
+          type: number
+        txid:
+          type: string
+        proofUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [reviewing, cleared, rejected]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AdminWithdrawal:
+      type: object
+      required: [id, userId, traderId, email, coin, amount, walletAddress, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        traderId:
+          type: string
+        email:
+          type: string
+        coin:
+          type: string
+        amount:
+          type: number
+        fee:
+          type: number
+        walletAddress:
+          type: string
+        status:
+          type: string
+          enum: [in_transit, cleared, rejected]
+        txid:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AdminUser:
+      type: object
+      required: [id, email, traderId, balance, kycStatus, role, createdAt]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        traderId:
+          type: string
+        balance:
+          type: number
+        totalDeposited:
+          type: number
+        totalInvested:
+          type: number
+        kycStatus:
+          type: string
+        role:
+          type: string
+        guildCode:
+          type: ["string", "null"]
+        referredBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AdminKyc:
+      type: object
+      required: [id, userId, traderId, email, idDocumentUrl, selfieUrl, status, submittedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        traderId:
+          type: string
+        email:
+          type: string
+        idDocumentUrl:
+          type: string
+        selfieUrl:
+          type: string
+        proofOfAddressUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        rejectionReason:
+          type: ["string", "null"]
+        submittedAt:
+          type: string
+
+    AdminRejectInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    AdminProcessWithdrawalInput:
+      type: object
+      required: [txid]
+      properties:
+        txid:
+          type: string
+
+    AdminCreditProfitInput:
+      type: object
+      required: [amount, description]
+      properties:
+        amount:
+          type: number
+        description:
+          type: string
+
+    AdminStats:
+      type: object
+      required: [totalUsers, totalDeposited, totalWithdrawn, totalProfitPaid, activeShipments, pendingDeposits, pendingWithdrawals, pendingKyc]
+      properties:
+        totalUsers:
+          type: integer
+        totalDeposited:
+          type: number
+        totalWithdrawn:
+          type: number
+        totalProfitPaid:
+          type: number
+        activeShipments:
+          type: integer
+        pendingDeposits:
+          type: integer
+        pendingWithdrawals:
+          type: integer
+        pendingKyc:
+          type: integer
+
+    CryptoWalletsUpdate:
+      type: object
+      properties:
+        btc:
+          type: ["string", "null"]
+        eth:
+          type: ["string", "null"]
+        usdt:
+          type: ["string", "null"]
+        bnb:
+          type: ["string", "null"]
+        trx:
+          type: ["string", "null"]

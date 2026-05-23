@@ -18,3 +18,18 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "tradebox-jwt-secret-2025-x9k2p7m4n8"
+ADMIN_EMAIL = "admin@tradebox.io"
+ADMIN_PASSWORD = "TradeBoxAdmin2025!"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 23076
+externalPort = 3000
