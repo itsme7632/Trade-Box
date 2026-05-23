@@ -4,7 +4,7 @@ import { ShipmentCard } from "@/components/shipment-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Search, Filter, Loader2 } from "lucide-react";
-import { Button } from "react-day-picker";
+import { Button } from "@/components/ui/button";
 
 export default function Shipments() {
   const [category, setCategory] = useState<ListShipmentsCategory | "all">("all");
