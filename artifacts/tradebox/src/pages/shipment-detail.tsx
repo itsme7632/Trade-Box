@@ -17,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function ShipmentDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
-  const { data: shipment, isLoading } = useGetShipment(id, { query: { enabled: !!id } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: shipment, isLoading } = useGetShipment(id, { query: { enabled: !!id } as any });
   const fundMutation = useFundShipment();
   const { toast } = useToast();
   const queryClient = useQueryClient();

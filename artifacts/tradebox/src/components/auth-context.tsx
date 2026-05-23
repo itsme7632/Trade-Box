@@ -20,11 +20,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: user, isLoading, refetch } = useGetMe({
-    query: {
-      enabled: !!token,
-      retry: false,
-    }
+    query: { enabled: !!token, retry: false } as any,
   });
 
   useEffect(() => {

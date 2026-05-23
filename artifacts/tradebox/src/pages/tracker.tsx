@@ -127,7 +127,7 @@ export default function Tracker() {
                           </div>
                           {/* Tooltip */}
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#1E293B] border border-[#334155] p-2 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-30">
-                            <p className="font-bold text-xs">{(s as any).vesselName ?? s.title}</p>
+                            <p className="font-bold text-xs">{s.vesselName}</p>
                             <p className="text-[10px] text-gray-400 font-mono mt-0.5">
                               {Math.round(pct)}% complete
                               {(s as any).etaDays != null ? ` · ETA ${(s as any).etaDays}d` : ""}
