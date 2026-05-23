@@ -160,6 +160,22 @@
   100% { transform: translateX(-50%); }
 }
 
+.page {
+  display: none !important;
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.page.active {
+  display: block !important;
+  visibility: visible;
+  height: auto;
+  overflow: visible;
+  pointer-events: auto;
+}
+
 @layer utilities {
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */

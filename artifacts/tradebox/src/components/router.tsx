@@ -13,8 +13,19 @@ import Guild from "@/pages/guild";
 import ProfilePage from "@/pages/profile";
 import AdminDashboard from "@/pages/admin";
 import { Loader2 } from "lucide-react";
+import type { ComponentType } from "react";
 
-function ProtectedRoute({ component: Component, adminOnly = false }: { component: any, adminOnly?: boolean }) {
+function PageWrapper({ children }: { children: React.ReactNode }) {
+  return <div className="page active">{children}</div>;
+}
+
+function ProtectedLayout({
+  component: Component,
+  adminOnly = false,
+}: {
+  component: ComponentType;
+  adminOnly?: boolean;
+}) {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -25,44 +36,69 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
     );
   }
 
-  if (!user) {
-    return <Redirect to="/login" />;
-  }
-
-  if (adminOnly && user.role !== "admin") {
-    return <Redirect to="/market" />;
-  }
+  if (!user) return <Redirect to="/login" />;
+  if (adminOnly && user.role !== "admin") return <Redirect to="/market" />;
 
   return (
     <AppLayout>
-      <Component />
+      <PageWrapper>
+        <Component />
+      </PageWrapper>
     </AppLayout>
   );
 }
 
-export function AppRouter() {
-  const { user } = useAuth();
+function RouteShipmentDetail() {
+  return <ProtectedLayout component={ShipmentDetail} />;
+}
+function RouteShipments() {
+  return <ProtectedLayout component={Shipments} />;
+}
+function RouteMarket() {
+  return <ProtectedLayout component={Market} />;
+}
+function RouteCargo() {
+  return <ProtectedLayout component={Cargo} />;
+}
+function RouteWallet() {
+  return <ProtectedLayout component={Wallet} />;
+}
+function RouteTracker() {
+  return <ProtectedLayout component={Tracker} />;
+}
+function RouteGuild() {
+  return <ProtectedLayout component={Guild} />;
+}
+function RouteProfile() {
+  return <ProtectedLayout component={ProfilePage} />;
+}
+function RouteAdmin() {
+  return <ProtectedLayout component={AdminDashboard} adminOnly />;
+}
 
+function RootRedirect() {
+  const { user } = useAuth();
+  return <Redirect to={user ? "/market" : "/login"} />;
+}
+
+export function AppRouter() {
   return (
     <Switch>
       <Route path="/login" component={AuthPage} />
       <Route path="/register" component={AuthPage} />
-      
-      <Route path="/">
-        {user ? <Redirect to="/market" /> : <Redirect to="/login" />}
-      </Route>
 
-      <Route path="/market" component={() => <ProtectedRoute component={Market} />} />
-      <Route path="/cargo" component={() => <ProtectedRoute component={Cargo} />} />
-      <Route path="/market/shipments" component={() => <ProtectedRoute component={Shipments} />} />
-      <Route path="/market/shipments/:id" component={() => <ProtectedRoute component={ShipmentDetail} />} />
-      <Route path="/wallet" component={() => <ProtectedRoute component={Wallet} />} />
-      <Route path="/tracker" component={() => <ProtectedRoute component={Tracker} />} />
-      <Route path="/guild" component={() => <ProtectedRoute component={Guild} />} />
-      <Route path="/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
-      
-      <Route path="/admin" component={() => <ProtectedRoute component={AdminDashboard} adminOnly />} />
+      {/* Most-specific routes first to prevent prefix shadowing */}
+      <Route path="/market/shipments/:id" component={RouteShipmentDetail} />
+      <Route path="/market/shipments" component={RouteShipments} />
+      <Route path="/market" component={RouteMarket} />
+      <Route path="/cargo" component={RouteCargo} />
+      <Route path="/wallet" component={RouteWallet} />
+      <Route path="/tracker" component={RouteTracker} />
+      <Route path="/guild" component={RouteGuild} />
+      <Route path="/profile" component={RouteProfile} />
+      <Route path="/admin" component={RouteAdmin} />
 
+      <Route path="/" component={RootRedirect} />
       <Route component={NotFound} />
     </Switch>
   );
