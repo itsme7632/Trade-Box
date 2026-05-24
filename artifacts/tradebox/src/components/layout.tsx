@@ -10,12 +10,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { name: "Market", path: "/market", icon: BarChart2 },
-    { name: "Shipments", path: "/market/shipments", icon: Anchor },
     { name: "My Cargo", path: "/cargo", icon: Ship },
     { name: "Wallet", path: "/wallet", icon: Wallet },
     { name: "Tracker", path: "/tracker", icon: Map },
-    { name: "Guild", path: "/guild", icon: Users },
     { name: "Profile", path: "/profile", icon: User },
+    { name: "Shipments", path: "/market/shipments", icon: Anchor },
+    { name: "Guild", path: "/guild", icon: Users },
   ];
 
   if (user?.role === "admin") {
