@@ -22,21 +22,21 @@ export default function Shipments() {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0F1923] text-white p-4 md:p-8">
+    <div className="flex flex-col min-h-screen bg-[#F4F7FB] text-[#0F1923] p-4 md:p-8">
       <div className="max-w-7xl mx-auto w-full space-y-6">
         
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#1E293B] pb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-[#EEF2F8] pb-6">
           <div>
             <h1 className="text-3xl font-heading font-bold tracking-tight">Cargo Market</h1>
-            <p className="text-gray-400 font-mono text-sm mt-1 uppercase">Browse available shipments for funding</p>
+            <p className="text-[#6A82A0] font-mono text-sm mt-1 uppercase">Browse available shipments for funding</p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6A82A0]" />
               <Input 
                 placeholder="Search ports or vessels..." 
-                className="pl-9 bg-[#1E293B] border-[#334155] focus:border-[#0066FF] text-white font-mono h-10"
+                className="pl-9 bg-white border-[#EEF2F8] focus:border-[#0066FF] text-[#0F1923] font-mono h-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -44,10 +44,10 @@ export default function Shipments() {
             
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <Select value={category} onValueChange={(val: any) => setCategory(val)}>
-                <SelectTrigger className="w-full sm:w-[160px] bg-[#1E293B] border-[#334155] font-mono h-10">
+                <SelectTrigger className="w-full sm:w-[160px] bg-white border-[#EEF2F8] font-mono h-10 text-[#0F1923]">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1E293B] border-[#334155] text-white font-mono">
+                <SelectContent className="bg-white border-[#EEF2F8] text-[#0F1923] font-mono">
                   <SelectItem value="all">All Cargo</SelectItem>
                   <SelectItem value="electronics">Electronics</SelectItem>
                   <SelectItem value="agricultural">Agricultural</SelectItem>
@@ -58,10 +58,10 @@ export default function Shipments() {
               </Select>
 
               <Select value={riskGrade} onValueChange={(val: any) => setRiskGrade(val)}>
-                <SelectTrigger className="w-full sm:w-[130px] bg-[#1E293B] border-[#334155] font-mono h-10">
+                <SelectTrigger className="w-full sm:w-[130px] bg-white border-[#EEF2F8] font-mono h-10 text-[#0F1923]">
                   <SelectValue placeholder="Risk Grade" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1E293B] border-[#334155] text-white font-mono">
+                <SelectContent className="bg-white border-[#EEF2F8] text-[#0F1923] font-mono">
                   <SelectItem value="all">All Grades</SelectItem>
                   <SelectItem value="A">Grade A</SelectItem>
                   <SelectItem value="B">Grade B</SelectItem>
@@ -84,15 +84,15 @@ export default function Shipments() {
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 bg-[#1E293B] rounded-xl border border-[#334155] border-dashed">
-            <Filter className="h-12 w-12 text-gray-500 mb-4" />
-            <h3 className="text-xl font-heading font-bold text-white mb-2">No Cargo Found</h3>
-            <p className="text-gray-400 font-mono text-center max-w-md">
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-[#EEF2F8] border-dashed shadow-sm">
+            <Filter className="h-12 w-12 text-[#6A82A0] mb-4" />
+            <h3 className="text-xl font-heading font-bold text-[#0F1923] mb-2">No Cargo Found</h3>
+            <p className="text-[#6A82A0] font-mono text-center max-w-md">
               No open shipments match your current filter criteria. Try adjusting your filters or search term.
             </p>
             <Button 
               variant="outline" 
-              className="mt-6 border-[#334155] text-white hover:bg-[#334155]"
+              className="mt-6 border-[#EEF2F8] text-[#0F1923] hover:bg-[#EEF2F8]"
               onClick={() => { setCategory("all"); setRiskGrade("all"); setSearch(""); }}
             >
               Clear Filters

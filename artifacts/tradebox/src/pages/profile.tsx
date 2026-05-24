@@ -94,18 +94,18 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return <div className="p-8 max-w-4xl mx-auto space-y-8"><Skeleton className="h-64 w-full bg-[#1E293B]" /></div>;
+    return <div className="p-8 max-w-4xl mx-auto space-y-8"><Skeleton className="h-64 w-full bg-white border border-[#EEF2F8]" /></div>;
   }
 
   const kycStatusColors = {
-    none: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+    none: "bg-gray-100 text-[#6A82A0] border-[#DDE4EF]",
     pending: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
     approved: "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20",
     rejected: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0F1923] text-white p-4 md:p-8">
+    <div className="flex flex-col min-h-screen bg-[#F4F7FB] text-[#0F1923] p-4 md:p-8">
       <div className="max-w-4xl mx-auto w-full space-y-6">
         
         <div className="flex items-center gap-3 mb-6">
@@ -114,7 +114,7 @@ export default function ProfilePage() {
           </div>
           <div>
             <h1 className="text-3xl font-heading font-bold tracking-tight">{profile?.traderId}</h1>
-            <p className="text-gray-400 font-mono text-sm">{profile?.email}</p>
+            <p className="text-[#6A82A0] font-mono text-sm">{profile?.email}</p>
           </div>
           <div className={`ml-auto px-3 py-1 rounded text-xs font-mono uppercase font-bold border flex items-center gap-1 ${kycStatusColors[profile?.kycStatus || 'none']}`}>
             {profile?.kycStatus === 'approved' ? <CheckCircle2 className="h-3 w-3" /> : 
@@ -126,34 +126,34 @@ export default function ProfilePage() {
 
         {/* Stats Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-[#1E293B] p-4 rounded-xl border border-[#334155]">
-            <p className="text-[10px] text-gray-500 font-mono uppercase mb-1">Total Shipped</p>
+          <div className="bg-white p-4 rounded-xl border border-[#EEF2F8] shadow-sm">
+            <p className="text-[10px] text-[#6A82A0] font-mono uppercase mb-1">Total Shipped</p>
             <p className="font-bold font-mono text-lg">{profile?.traderStats.totalShipped}</p>
           </div>
-          <div className="bg-[#1E293B] p-4 rounded-xl border border-[#334155]">
-            <p className="text-[10px] text-gray-500 font-mono uppercase mb-1">Total Profit</p>
-            <p className="font-bold font-mono text-lg text-[#22C55E]">+${profile?.traderStats.totalProfit.toLocaleString()}</p>
+          <div className="bg-white p-4 rounded-xl border border-[#EEF2F8] shadow-sm">
+            <p className="text-[10px] text-[#6A82A0] font-mono uppercase mb-1">Total Profit</p>
+            <p className="font-bold font-mono text-lg text-[#22C55E]">+{profile?.traderStats.totalProfit.toLocaleString()} USDT</p>
           </div>
-          <div className="bg-[#1E293B] p-4 rounded-xl border border-[#334155]">
-            <p className="text-[10px] text-gray-500 font-mono uppercase mb-1">Active Cargo</p>
+          <div className="bg-white p-4 rounded-xl border border-[#EEF2F8] shadow-sm">
+            <p className="text-[10px] text-[#6A82A0] font-mono uppercase mb-1">Active Cargo</p>
             <p className="font-bold font-mono text-lg">{profile?.traderStats.activeInvestments}</p>
           </div>
-          <div className="bg-[#1E293B] p-4 rounded-xl border border-[#334155]">
-            <p className="text-[10px] text-gray-500 font-mono uppercase mb-1">Countries</p>
+          <div className="bg-white p-4 rounded-xl border border-[#EEF2F8] shadow-sm">
+            <p className="text-[10px] text-[#6A82A0] font-mono uppercase mb-1">Countries</p>
             <p className="font-bold font-mono text-lg">{profile?.traderStats.countriesTraded}</p>
           </div>
         </div>
 
         <Tabs defaultValue="settings" className="w-full">
-          <TabsList className="bg-[#1E293B] border border-[#334155] p-1 h-auto mb-6">
-            <TabsTrigger value="settings" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">General</TabsTrigger>
-            <TabsTrigger value="kyc" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">KYC Verification</TabsTrigger>
-            <TabsTrigger value="wallets" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">Payout Wallets</TabsTrigger>
+          <TabsList className="bg-white border border-[#EEF2F8] p-1 h-auto mb-6 shadow-sm">
+            <TabsTrigger value="settings" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#0066FF] data-[state=active]:text-white text-[#6A82A0]">General</TabsTrigger>
+            <TabsTrigger value="kyc" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#0066FF] data-[state=active]:text-white text-[#6A82A0]">KYC Verification</TabsTrigger>
+            <TabsTrigger value="wallets" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#0066FF] data-[state=active]:text-white text-[#6A82A0]">Payout Wallets</TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings">
-            <div className="bg-[#1E293B] p-6 rounded-xl border border-[#334155]">
-              <h3 className="text-xl font-heading font-bold mb-6 flex items-center gap-2"><User className="h-5 w-5 text-[#0066FF]" /> Account Settings</h3>
+            <div className="bg-white p-6 rounded-xl border border-[#EEF2F8] shadow-sm">
+              <h3 className="text-xl font-heading font-bold mb-6 flex items-center gap-2 text-[#0F1923]"><User className="h-5 w-5 text-[#0066FF]" /> Account Settings</h3>
               
               <Form {...profileForm}>
                 <form onSubmit={profileForm.handleSubmit(onUpdateProfile)} className="space-y-6">
@@ -163,9 +163,9 @@ export default function ProfilePage() {
                       name="telegramHandle"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-gray-400 font-mono text-xs uppercase">Telegram Handle</FormLabel>
+                          <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase">Telegram Handle</FormLabel>
                           <FormControl>
-                            <Input placeholder="@username" className="bg-[#0F1923] border-[#334155]" {...field} />
+                            <Input placeholder="@username" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923]" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -176,9 +176,9 @@ export default function ProfilePage() {
                       name="whatsappNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-gray-400 font-mono text-xs uppercase">WhatsApp Number</FormLabel>
+                          <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase">WhatsApp Number</FormLabel>
                           <FormControl>
-                            <Input placeholder="+1234567890" className="bg-[#0F1923] border-[#334155]" {...field} />
+                            <Input placeholder="+1234567890" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923]" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -186,17 +186,17 @@ export default function ProfilePage() {
                     />
                   </div>
                   
-                  <div className="border-t border-[#334155] pt-6">
+                  <div className="border-t border-[#EEF2F8] pt-6">
                     <FormField
                       control={profileForm.control}
                       name="twoFactorEnabled"
                       render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-[#334155] bg-[#0F1923] p-4">
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border border-[#EEF2F8] bg-[#F8FAFD] p-4">
                           <div className="space-y-0.5">
-                            <FormLabel className="text-base font-bold flex items-center gap-2">
+                            <FormLabel className="text-base font-bold flex items-center gap-2 text-[#0F1923]">
                               <Key className="h-4 w-4 text-[#0066FF]" /> Two-Factor Authentication
                             </FormLabel>
-                            <p className="text-xs text-gray-400 font-mono">
+                            <p className="text-xs text-[#6A82A0] font-mono">
                               Secure your account withdrawals with 2FA
                             </p>
                           </div>
@@ -208,7 +208,7 @@ export default function ProfilePage() {
                     />
                   </div>
 
-                  <Button type="submit" className="bg-[#0066FF] hover:bg-[#0052CC]" disabled={updateProfile.isPending}>
+                  <Button type="submit" className="bg-[#0066FF] hover:bg-[#0052CC] text-white" disabled={updateProfile.isPending}>
                     {updateProfile.isPending ? "Saving..." : "Save Changes"}
                   </Button>
                 </form>
@@ -217,20 +217,20 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="kyc">
-            <div className="bg-[#1E293B] p-6 rounded-xl border border-[#334155]">
-              <h3 className="text-xl font-heading font-bold mb-6 flex items-center gap-2"><Shield className="h-5 w-5 text-[#0066FF]" /> Identity Verification</h3>
+            <div className="bg-white p-6 rounded-xl border border-[#EEF2F8] shadow-sm">
+              <h3 className="text-xl font-heading font-bold mb-6 flex items-center gap-2 text-[#0F1923]"><Shield className="h-5 w-5 text-[#0066FF]" /> Identity Verification</h3>
               
               {profile?.kycStatus === 'approved' ? (
                 <div className="bg-[#22C55E]/10 border border-[#22C55E]/20 p-6 rounded-lg text-center">
                   <CheckCircle2 className="h-12 w-12 text-[#22C55E] mx-auto mb-3" />
                   <h4 className="text-lg font-bold text-[#22C55E]">Identity Verified</h4>
-                  <p className="text-gray-400 text-sm mt-2">Your account has full trading and withdrawal privileges.</p>
+                  <p className="text-[#6A82A0] text-sm mt-2">Your account has full trading and withdrawal privileges.</p>
                 </div>
               ) : profile?.kycStatus === 'pending' ? (
                 <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/20 p-6 rounded-lg text-center">
                   <Clock className="h-12 w-12 text-[#F59E0B] mx-auto mb-3" />
                   <h4 className="text-lg font-bold text-[#F59E0B]">Verification Pending</h4>
-                  <p className="text-gray-400 text-sm mt-2">Our compliance team is reviewing your documents. This usually takes 24-48 hours.</p>
+                  <p className="text-[#6A82A0] text-sm mt-2">Our compliance team is reviewing your documents. This usually takes 24-48 hours.</p>
                 </div>
               ) : (
                 <Form {...kycForm}>
@@ -241,16 +241,16 @@ export default function ProfilePage() {
                       </div>
                     )}
                     
-                    <p className="text-gray-400 text-sm mb-4">Provide URLs to your identity documents (hosted securely). KYC is required for withdrawals over $10,000.</p>
+                    <p className="text-[#6A82A0] text-sm mb-4">Provide URLs to your identity documents (hosted securely). KYC is required for withdrawals over 10,000 USDT.</p>
                     
                     <FormField
                       control={kycForm.control}
                       name="idDocumentUrl"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-gray-400 font-mono text-xs uppercase flex items-center gap-2"><FileText className="h-3 w-3" /> Government ID (Passport/License)</FormLabel>
+                          <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase flex items-center gap-2"><FileText className="h-3 w-3" /> Government ID (Passport/License)</FormLabel>
                           <FormControl>
-                            <Input placeholder="https://..." className="bg-[#0F1923] border-[#334155] font-mono" {...field} />
+                            <Input placeholder="https://..." className="bg-[#F8FAFD] border-[#EEF2F8] font-mono text-[#0F1923]" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -261,9 +261,9 @@ export default function ProfilePage() {
                       name="selfieUrl"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-gray-400 font-mono text-xs uppercase flex items-center gap-2"><Smartphone className="h-3 w-3" /> Selfie holding ID</FormLabel>
+                          <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase flex items-center gap-2"><Smartphone className="h-3 w-3" /> Selfie holding ID</FormLabel>
                           <FormControl>
-                            <Input placeholder="https://..." className="bg-[#0F1923] border-[#334155] font-mono" {...field} />
+                            <Input placeholder="https://..." className="bg-[#F8FAFD] border-[#EEF2F8] font-mono text-[#0F1923]" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -274,16 +274,16 @@ export default function ProfilePage() {
                       name="proofOfAddressUrl"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-gray-400 font-mono text-xs uppercase">Proof of Address (Optional)</FormLabel>
+                          <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase">Proof of Address (Optional)</FormLabel>
                           <FormControl>
-                            <Input placeholder="https://..." className="bg-[#0F1923] border-[#334155] font-mono" {...field} />
+                            <Input placeholder="https://..." className="bg-[#F8FAFD] border-[#EEF2F8] font-mono text-[#0F1923]" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <Button type="submit" className="bg-[#0066FF] hover:bg-[#0052CC]" disabled={submitKyc.isPending}>
+                    <Button type="submit" className="bg-[#0066FF] hover:bg-[#0052CC] text-white" disabled={submitKyc.isPending}>
                       {submitKyc.isPending ? "Submitting..." : "Submit Documents"}
                     </Button>
                   </form>
@@ -293,9 +293,9 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="wallets">
-            <div className="bg-[#1E293B] p-6 rounded-xl border border-[#334155]">
-              <h3 className="text-xl font-heading font-bold mb-6 flex items-center gap-2"><LinkIcon className="h-5 w-5 text-[#0066FF]" /> Linked Payout Addresses</h3>
-              <p className="text-gray-400 text-sm mb-6">Link your external crypto wallets for automated profit payouts and withdrawals.</p>
+            <div className="bg-white p-6 rounded-xl border border-[#EEF2F8] shadow-sm">
+              <h3 className="text-xl font-heading font-bold mb-6 flex items-center gap-2 text-[#0F1923]"><LinkIcon className="h-5 w-5 text-[#0066FF]" /> Linked Payout Addresses</h3>
+              <p className="text-[#6A82A0] text-sm mb-6">Link your external crypto wallets for automated profit payouts and withdrawals.</p>
               
               <Form {...walletForm}>
                 <form onSubmit={walletForm.handleSubmit(onUpdateWallets)} className="space-y-4">
@@ -304,9 +304,9 @@ export default function ProfilePage() {
                     name="usdt"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-400 font-mono text-xs uppercase">USDT (TRC20)</FormLabel>
+                        <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase">USDT (TRC20)</FormLabel>
                         <FormControl>
-                          <Input placeholder="T..." className="bg-[#0F1923] border-[#334155] font-mono" {...field} />
+                          <Input placeholder="T..." className="bg-[#F8FAFD] border-[#EEF2F8] font-mono text-[#0F1923]" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -317,9 +317,9 @@ export default function ProfilePage() {
                     name="btc"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-400 font-mono text-xs uppercase">Bitcoin (BTC)</FormLabel>
+                        <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase">Bitcoin (BTC)</FormLabel>
                         <FormControl>
-                          <Input placeholder="1... or bc1..." className="bg-[#0F1923] border-[#334155] font-mono" {...field} />
+                          <Input placeholder="1... or bc1..." className="bg-[#F8FAFD] border-[#EEF2F8] font-mono text-[#0F1923]" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -330,16 +330,16 @@ export default function ProfilePage() {
                     name="eth"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-400 font-mono text-xs uppercase">Ethereum (ERC20)</FormLabel>
+                        <FormLabel className="text-[#6A82A0] font-mono text-xs uppercase">Ethereum (ERC20)</FormLabel>
                         <FormControl>
-                          <Input placeholder="0x..." className="bg-[#0F1923] border-[#334155] font-mono" {...field} />
+                          <Input placeholder="0x..." className="bg-[#F8FAFD] border-[#EEF2F8] font-mono text-[#0F1923]" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <Button type="submit" className="mt-6 bg-[#0066FF] hover:bg-[#0052CC]" disabled={updateWallets.isPending}>
+                  <Button type="submit" className="mt-6 bg-[#0066FF] hover:bg-[#0052CC] text-white" disabled={updateWallets.isPending}>
                     {updateWallets.isPending ? "Saving..." : "Save Addresses"}
                   </Button>
                 </form>

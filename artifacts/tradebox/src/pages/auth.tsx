@@ -91,14 +91,14 @@ export function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F1923] flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 bg-[#1E293B] p-8 rounded-xl border border-[#334155] shadow-2xl">
+    <div className="min-h-screen bg-[#F4F7FB] flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-xl border border-[#EEF2F8] shadow-lg">
         <div className="flex flex-col items-center text-center">
           <div className="bg-[#0066FF]/10 p-4 rounded-full mb-4">
             <Anchor className="h-10 w-10 text-[#0066FF]" />
           </div>
-          <h2 className="text-3xl font-heading font-bold text-white tracking-tight">TradeBox</h2>
-          <p className="text-gray-400 mt-2 font-mono text-sm uppercase">Global Trade Finance Portal</p>
+          <h2 className="text-3xl font-heading font-bold text-[#0F1923] tracking-tight">TradeBox</h2>
+          <p className="text-[#6A82A0] mt-2 font-mono text-sm uppercase">Global Trade Finance Portal</p>
         </div>
 
         {isLogin ? (
@@ -109,9 +109,9 @@ export function AuthPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300 font-mono text-xs uppercase">Email Address</FormLabel>
+                    <FormLabel className="text-[#3A4E66] font-mono text-xs uppercase">Email Address</FormLabel>
                     <FormControl>
-                      <Input placeholder="trader@example.com" className="bg-[#0F1923] border-[#334155] text-white focus:border-[#0066FF] font-mono" {...field} />
+                      <Input placeholder="trader@example.com" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923] focus:border-[#0066FF] font-mono" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -122,9 +122,9 @@ export function AuthPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300 font-mono text-xs uppercase">Password</FormLabel>
+                    <FormLabel className="text-[#3A4E66] font-mono text-xs uppercase">Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" className="bg-[#0F1923] border-[#334155] text-white focus:border-[#0066FF] font-mono" {...field} />
+                      <Input type="password" placeholder="••••••••" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923] focus:border-[#0066FF] font-mono" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -143,9 +143,9 @@ export function AuthPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300 font-mono text-xs uppercase">Email Address</FormLabel>
+                    <FormLabel className="text-[#3A4E66] font-mono text-xs uppercase">Email Address</FormLabel>
                     <FormControl>
-                      <Input placeholder="trader@example.com" className="bg-[#0F1923] border-[#334155] text-white focus:border-[#0066FF] font-mono" {...field} />
+                      <Input placeholder="trader@example.com" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923] focus:border-[#0066FF] font-mono" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -156,9 +156,9 @@ export function AuthPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300 font-mono text-xs uppercase">Password</FormLabel>
+                    <FormLabel className="text-[#3A4E66] font-mono text-xs uppercase">Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" className="bg-[#0F1923] border-[#334155] text-white focus:border-[#0066FF] font-mono" {...field} />
+                      <Input type="password" placeholder="••••••••" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923] focus:border-[#0066FF] font-mono" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -169,9 +169,9 @@ export function AuthPage() {
                 name="referralCode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-300 font-mono text-xs uppercase">Referral Code (Optional)</FormLabel>
+                    <FormLabel className="text-[#3A4E66] font-mono text-xs uppercase">Referral Code (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="TB-XXXX" className="bg-[#0F1923] border-[#334155] text-white focus:border-[#0066FF] font-mono" {...field} />
+                      <Input placeholder="TB-XXXX" className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923] focus:border-[#0066FF] font-mono" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -187,7 +187,7 @@ export function AuthPage() {
         <div className="text-center mt-6">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-[#0066FF] hover:text-white text-sm font-mono transition-colors"
+            className="text-[#0066FF] hover:text-[#0052CC] text-sm font-mono transition-colors"
           >
             {isLogin ? "Request New Trader ID" : "Existing Trader Login"}
           </button>

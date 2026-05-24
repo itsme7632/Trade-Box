@@ -1,5 +1,5 @@
-import { Switch, Route, Redirect } from "wouter";
-import { AuthProvider, useAuth } from "@/components/auth-context";
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { useAuth } from "@/components/auth-context";
 import { AppLayout } from "@/components/layout";
 import { AuthPage } from "@/pages/auth";
 import NotFound from "@/pages/not-found";
@@ -13,10 +13,14 @@ import Guild from "@/pages/guild";
 import ProfilePage from "@/pages/profile";
 import AdminDashboard from "@/pages/admin";
 import { Loader2 } from "lucide-react";
-import type { ComponentType } from "react";
+import { memo, type ComponentType } from "react";
 
-function PageWrapper({ children }: { children: React.ReactNode }) {
-  return <div className="page active">{children}</div>;
+function PageWrapper({ children, pageKey }: { children: React.ReactNode; pageKey: string }) {
+  return (
+    <div className="page active" key={pageKey}>
+      {children}
+    </div>
+  );
 }
 
 function ProtectedLayout({
@@ -27,10 +31,11 @@ function ProtectedLayout({
   adminOnly?: boolean;
 }) {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0F1923]">
+      <div className="flex h-screen items-center justify-center bg-[#F4F7FB]">
         <Loader2 className="h-8 w-8 animate-spin text-[#0066FF]" />
       </div>
     );
@@ -41,40 +46,42 @@ function ProtectedLayout({
 
   return (
     <AppLayout>
-      <PageWrapper>
+      <PageWrapper pageKey={location}>
         <Component />
       </PageWrapper>
     </AppLayout>
   );
 }
 
-function RouteShipmentDetail() {
+// Stable named route components — never use arrow functions as route components.
+// Each is wrapped in memo to prevent re-renders when parent state changes.
+const RouteShipmentDetail = memo(function RouteShipmentDetail() {
   return <ProtectedLayout component={ShipmentDetail} />;
-}
-function RouteShipments() {
+});
+const RouteShipments = memo(function RouteShipments() {
   return <ProtectedLayout component={Shipments} />;
-}
-function RouteMarket() {
+});
+const RouteMarket = memo(function RouteMarket() {
   return <ProtectedLayout component={Market} />;
-}
-function RouteCargo() {
+});
+const RouteCargo = memo(function RouteCargo() {
   return <ProtectedLayout component={Cargo} />;
-}
-function RouteWallet() {
+});
+const RouteWallet = memo(function RouteWallet() {
   return <ProtectedLayout component={Wallet} />;
-}
-function RouteTracker() {
+});
+const RouteTracker = memo(function RouteTracker() {
   return <ProtectedLayout component={Tracker} />;
-}
-function RouteGuild() {
+});
+const RouteGuild = memo(function RouteGuild() {
   return <ProtectedLayout component={Guild} />;
-}
-function RouteProfile() {
+});
+const RouteProfile = memo(function RouteProfile() {
   return <ProtectedLayout component={ProfilePage} />;
-}
-function RouteAdmin() {
+});
+const RouteAdmin = memo(function RouteAdmin() {
   return <ProtectedLayout component={AdminDashboard} adminOnly />;
-}
+});
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -87,13 +94,13 @@ export function AppRouter() {
       <Route path="/login" component={AuthPage} />
       <Route path="/register" component={AuthPage} />
 
-      {/* Most-specific routes first to prevent prefix shadowing */}
+      {/* Most-specific routes first — prevents prefix shadowing */}
       <Route path="/market/shipments/:id" component={RouteShipmentDetail} />
       <Route path="/market/shipments" component={RouteShipments} />
       <Route path="/market" component={RouteMarket} />
+      <Route path="/tracker" component={RouteTracker} />
       <Route path="/cargo" component={RouteCargo} />
       <Route path="/wallet" component={RouteWallet} />
-      <Route path="/tracker" component={RouteTracker} />
       <Route path="/guild" component={RouteGuild} />
       <Route path="/profile" component={RouteProfile} />
       <Route path="/admin" component={RouteAdmin} />

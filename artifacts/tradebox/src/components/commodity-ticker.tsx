@@ -10,7 +10,7 @@ export function CommodityTicker() {
   if (!prices || prices.length === 0) return null;
 
   return (
-    <div className="w-full bg-[#1E293B] border-b border-[#334155] overflow-hidden flex items-center py-2 relative">
+    <div className="w-full bg-white border-b border-[#EEF2F8] overflow-hidden flex items-center py-2 relative">
       <div
         className="flex whitespace-nowrap"
         style={{ animation: "ticker 30s linear infinite" }}
@@ -20,8 +20,8 @@ export function CommodityTicker() {
             key={i}
             className="inline-flex items-center space-x-2 mx-6 text-sm font-mono shrink-0"
           >
-            <span className="text-gray-400">{p.symbol}</span>
-            <span className="text-white font-semibold">${p.price.toFixed(2)}</span>
+            <span className="text-[#6A82A0]">{p.symbol}</span>
+            <span className="text-[#0F1923] font-semibold">${p.price.toFixed(2)}</span>
             <span className={p.change24h >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}>
               {p.change24h >= 0 ? "▲" : "▼"} {Math.abs(p.change24h)}%
             </span>
