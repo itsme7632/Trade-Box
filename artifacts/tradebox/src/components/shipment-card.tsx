@@ -1,95 +1,126 @@
 import { Shipment } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { ArrowRight, Anchor, TrendingUp, ShieldAlert } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { ArrowRight, TrendingUp, Clock, Zap } from "lucide-react";
+
+const riskConfig: Record<string, { color: string; bg: string; label: string }> = {
+  A: { color: "#10B981", bg: "rgba(16,185,129,0.1)", label: "Low Risk" },
+  B: { color: "#3B82F6", bg: "rgba(59,130,246,0.1)", label: "Moderate" },
+  C: { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", label: "Medium Risk" },
+  D: { color: "#EF4444", bg: "rgba(239,68,68,0.1)", label: "High Risk" },
+};
+
+const cargoEmoji: Record<string, string> = {
+  electronics: "⚡",
+  agricultural: "🌿",
+  cocoa: "🍫",
+  coffee: "☕",
+  minerals: "⛏️",
+  textiles: "🧵",
+  lithium: "🔋",
+  pharmaceuticals: "💊",
+  pharma: "💊",
+  steel: "⚙️",
+};
 
 export function ShipmentCard({ shipment }: { shipment: Shipment }) {
-  const isClosingSoon = shipment.status === 'open' && shipment.fundingRaised / shipment.fundingGoal > 0.8;
-
-  const riskColors: Record<string, string> = {
-    A: "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20",
-    B: "bg-[#0066FF]/10 text-[#0066FF] border-[#0066FF]/20",
-    C: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
-    D: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
-  };
-
-  const statusColors: Record<string, string> = {
-    open: "bg-[#0066FF]/10 text-[#0066FF]",
-    funded: "bg-white text-[#0F1923] border border-[#EEF2F8]",
-    in_transit: "bg-[#F59E0B]/10 text-[#F59E0B]",
-    delivered: "bg-[#22C55E]/10 text-[#22C55E]",
-  };
+  const risk = riskConfig[shipment.riskGrade] || riskConfig.C;
+  const fundPct = Math.min(100, (shipment.fundingRaised / shipment.fundingGoal) * 100);
+  const isClosingSoon = shipment.status === "open" && fundPct > 80;
+  const emoji = cargoEmoji[shipment.cargoType] || "📦";
 
   return (
-    <Link href={`/market/shipments/${shipment.id}`} className="block">
-      <div className="bg-white rounded-xl border border-[#EEF2F8] p-5 hover:border-[#0066FF] transition-all cursor-pointer h-full flex flex-col group relative overflow-hidden shadow-sm hover:shadow-md">
-        {/* Decorative corner accent */}
-        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-[#0066FF]/10 to-transparent rounded-tr-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+    <Link href={`/market/shipments/${shipment.id}`}>
+      <div className="card-hover rounded-2xl h-full flex flex-col cursor-pointer overflow-hidden"
+        style={{
+          background: "rgba(10,22,40,0.8)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          backdropFilter: "blur(12px)"
+        }}>
 
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-xs text-[#6A82A0] uppercase tracking-wider">{shipment.cargoType}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider border ${riskColors[shipment.riskGrade]}`}>
-                Risk {shipment.riskGrade}
+        {/* Top gradient bar */}
+        <div className="h-0.5 w-full"
+          style={{ background: `linear-gradient(90deg, ${risk.color}44, ${risk.color}22, transparent)` }} />
+
+        <div className="p-5 flex flex-col flex-1 gap-4">
+
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className="text-xs font-mono px-2 py-0.5 rounded-full"
+                  style={{ background: risk.bg, color: risk.color, border: `1px solid ${risk.color}30` }}>
+                  Grade {shipment.riskGrade}
+                </span>
+                {isClosingSoon && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1"
+                    style={{ background: "rgba(245,158,11,0.1)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.2)" }}>
+                    <Zap className="h-2.5 w-2.5" /> Closing
+                  </span>
+                )}
+              </div>
+              <h3 className="font-bold text-[#E2E8F0] text-sm leading-snug line-clamp-2"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                {shipment.title}
+              </h3>
+            </div>
+            <div className="text-2xl shrink-0 ml-1">{emoji}</div>
+          </div>
+
+          {/* Route */}
+          <div className="flex items-center gap-2 text-xs">
+            <div className="flex-1 min-w-0">
+              <div className="text-[#334155] font-mono mb-0.5 text-[10px] uppercase tracking-wider">From</div>
+              <div className="text-[#94A3B8] font-medium truncate">{shipment.origin.split(",")[0]}</div>
+            </div>
+            <div className="flex flex-col items-center gap-0.5 shrink-0 px-1">
+              <ArrowRight className="h-3.5 w-3.5 text-[#1E3A5F]" />
+              <span className="text-[9px] font-mono text-[#334155]">{shipment.transitDays}d</span>
+            </div>
+            <div className="flex-1 min-w-0 text-right">
+              <div className="text-[#334155] font-mono mb-0.5 text-[10px] uppercase tracking-wider">To</div>
+              <div className="text-[#94A3B8] font-medium truncate">{shipment.destination.split(",")[0]}</div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl p-3 flex flex-col gap-0.5"
+              style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.1)" }}>
+              <div className="flex items-center gap-1 text-[10px] font-mono text-[#334155] uppercase tracking-wider">
+                <TrendingUp className="h-2.5 w-2.5" /> Return
+              </div>
+              <div className="text-[#60A5FA] font-bold font-mono text-base">+{shipment.profitPercent}%</div>
+            </div>
+            <div className="rounded-xl p-3 flex flex-col gap-0.5"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <div className="flex items-center gap-1 text-[10px] font-mono text-[#334155] uppercase tracking-wider">
+                <Clock className="h-2.5 w-2.5" /> Min Entry
+              </div>
+              <div className="text-[#E2E8F0] font-bold font-mono text-sm">{shipment.minInvestment.toLocaleString()} <span className="text-[10px] text-[#475569]">USDT</span></div>
+            </div>
+          </div>
+
+          {/* Funding progress */}
+          <div className="mt-auto">
+            <div className="flex justify-between items-center mb-2 text-xs">
+              <span className="font-mono text-[#334155]">
+                {shipment.fundingRaised.toLocaleString()} / {shipment.fundingGoal.toLocaleString()} USDT
+              </span>
+              <span className="font-mono font-bold" style={{ color: isClosingSoon ? "#F59E0B" : "#3B82F6" }}>
+                {Math.round(fundPct)}%
               </span>
             </div>
-            <h3 className="font-heading font-bold text-lg text-[#0F1923] group-hover:text-[#0066FF] transition-colors line-clamp-1">{shipment.title}</h3>
-          </div>
-          <div className={`text-xs px-2.5 py-1 rounded font-mono uppercase tracking-wider ${statusColors[shipment.status]}`}>
-            {shipment.status.replace('_', ' ')}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <div className="flex-1">
-            <p className="text-xs text-[#6A82A0] font-mono mb-1 uppercase tracking-wider">Origin</p>
-            <p className="text-sm font-semibold text-[#0F1923] truncate" title={shipment.origin}>{shipment.origin}</p>
-          </div>
-          <div className="flex flex-col items-center justify-center text-[#6A82A0] px-2 shrink-0">
-            <ArrowRight className="h-4 w-4 mb-1" />
-            <span className="text-[10px] font-mono">{shipment.transitDays}d</span>
-          </div>
-          <div className="flex-1 text-right">
-            <p className="text-xs text-[#6A82A0] font-mono mb-1 uppercase tracking-wider">Dest</p>
-            <p className="text-sm font-semibold text-[#0F1923] truncate" title={shipment.destination}>{shipment.destination}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-[#F8FAFD] p-3 rounded-lg border border-[#EEF2F8]">
-            <div className="flex items-center gap-1.5 mb-1 text-[#6A82A0]">
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span className="text-xs font-mono uppercase tracking-wider">Target Return</span>
+            <div className="h-1.5 rounded-full w-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${fundPct}%`,
+                  background: isClosingSoon
+                    ? "linear-gradient(90deg, #F59E0B, #FCD34D)"
+                    : "linear-gradient(90deg, #2563EB, #06B6D4)",
+                  boxShadow: isClosingSoon ? "0 0 8px rgba(245,158,11,0.5)" : "0 0 8px rgba(37,99,235,0.5)"
+                }} />
             </div>
-            <p className="text-lg font-bold text-[#0066FF] font-mono">+{shipment.profitPercent}%</p>
           </div>
-          <div className="bg-[#F8FAFD] p-3 rounded-lg border border-[#EEF2F8]">
-            <div className="flex items-center gap-1.5 mb-1 text-[#6A82A0]">
-              <ShieldAlert className="h-3.5 w-3.5" />
-              <span className="text-xs font-mono uppercase tracking-wider">Min Entry</span>
-            </div>
-            <p className="text-lg font-bold text-[#0F1923] font-mono">{shipment.minInvestment.toLocaleString()} USDT</p>
-          </div>
-        </div>
-
-        <div className="mt-auto pt-4 border-t border-[#EEF2F8]">
-          <div className="flex justify-between items-end mb-2">
-            <div>
-              <p className="text-xs text-[#6A82A0] font-mono uppercase tracking-wider mb-1">Funding Progress</p>
-              <p className="text-sm font-bold text-[#0F1923] font-mono">
-                {shipment.fundingRaised.toLocaleString()} <span className="text-[#6A82A0] font-normal">/ {shipment.fundingGoal.toLocaleString()} USDT</span>
-              </p>
-            </div>
-            <p className="text-sm font-bold text-[#0066FF] font-mono">
-              {Math.round((shipment.fundingRaised / shipment.fundingGoal) * 100)}%
-            </p>
-          </div>
-          <Progress 
-            value={(shipment.fundingRaised / shipment.fundingGoal) * 100} 
-            className="h-2 bg-[#F8FAFD]"
-            indicatorClassName={isClosingSoon ? "bg-[#F59E0B]" : "bg-[#0066FF]"}
-          />
         </div>
       </div>
     </Link>

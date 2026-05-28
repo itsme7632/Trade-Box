@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -38,9 +38,9 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
-  --font-sans: var(--app-font-sans);
-  --font-serif: var(--app-font-serif);
-  --font-mono: var(--app-font-mono);
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
   --font-heading: 'Space Grotesk', sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -50,65 +50,239 @@
 }
 
 :root {
-  --background: 213 33% 97%;
-  --foreground: 210 40% 10%;
+  --background: 222 47% 5%;
+  --foreground: 213 31% 91%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 210 40% 10%;
-  --card-border: 214 32% 89%;
+  --card: 222 47% 7%;
+  --card-foreground: 213 31% 91%;
+  --card-border: 222 32% 13%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 210 40% 10%;
-  --popover-border: 214 32% 89%;
+  --popover: 222 47% 7%;
+  --popover-foreground: 213 31% 91%;
+  --popover-border: 222 32% 13%;
 
-  --primary: 216 100% 50%;
+  --primary: 217 91% 60%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 210 40% 10%;
+  --secondary: 222 40% 11%;
+  --secondary-foreground: 213 31% 91%;
 
-  --muted: 213 25% 95%;
-  --muted-foreground: 215 20% 45%;
+  --muted: 222 40% 11%;
+  --muted-foreground: 215 20% 50%;
 
-  --accent: 216 100% 50%;
+  --accent: 217 91% 60%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 214 32% 89%;
-  --input: 214 32% 89%;
-  --ring: 216 100% 50%;
+  --border: 222 32% 13%;
+  --input: 222 32% 11%;
+  --ring: 217 91% 60%;
 
-  --radius: 0.25rem;
+  --radius: 0.75rem;
 
   --app-font-sans: 'Inter', sans-serif;
-  --app-font-mono: 'Space Grotesk', monospace;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: 'JetBrains Mono', monospace;
 }
 
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    background: #050D1B;
+    color: #E2E8F0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  
+
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading tracking-tight;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0A1628; }
+::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
+
+/* ========== ANIMATIONS ========== */
 @keyframes ticker {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
 
 @keyframes radarSweep {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(59, 130, 246, 0.6), 0 0 60px rgba(59, 130, 246, 0.2); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(59,130,246,0.2); }
+  50% { border-color: rgba(59,130,246,0.5); }
+}
+
+.animate-fade-in-up { animation: fadeInUp 0.4s ease forwards; }
+.animate-glow-pulse { animation: glowPulse 2.5s ease-in-out infinite; }
+.animate-float { animation: float 4s ease-in-out infinite; }
+.animate-border-glow { animation: borderGlow 2s ease-in-out infinite; }
+
+/* ========== GLASS STYLES ========== */
+.glass {
+  background: rgba(10, 22, 40, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-bright {
+  background: rgba(15, 30, 55, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+/* ========== GRADIENT TEXT ========== */
+.gradient-blue {
+  background: linear-gradient(135deg, #60A5FA, #06B6D4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #10B981, #34D399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ========== BUTTON GLOW ========== */
+.btn-glow {
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35);
+  transition: box-shadow 0.2s ease, transform 0.1s ease;
+}
+.btn-glow:hover {
+  box-shadow: 0 6px 30px rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
+}
+.btn-glow:active { transform: translateY(0); }
+
+/* ========== CARD HOVER ========== */
+.card-hover {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(59,130,246,0.15);
+}
+
+/* ========== SHIMMER SKELETON ========== */
+.shimmer {
+  background: linear-gradient(90deg, #0D1829 25%, #162440 50%, #0D1829 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* ========== BOTTOM NAV ========== */
+.bottom-nav {
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  background: rgba(5, 13, 27, 0.94);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ========== SAFE AREA ========== */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 8px); }
+
+/* ========== INPUTS ========== */
+.tb-input {
+  background: rgba(10, 22, 40, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #E2E8F0 !important;
+  transition: all 0.2s ease;
+  border-radius: 10px !important;
+}
+.tb-input:focus {
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
+  outline: none !important;
+}
+.tb-input::placeholder { color: #334155 !important; }
+
+/* ========== SELECT OVERRIDES ========== */
+[data-slot="select-trigger"] {
+  background: rgba(10, 22, 40, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #E2E8F0 !important;
+}
+[data-slot="select-content"] {
+  background: #0F1E35 !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+[data-slot="select-item"]:hover {
+  background: rgba(59,130,246,0.12) !important;
+}
+
+/* ========== TABS ========== */
+[data-slot="tabs-list"] {
+  background: rgba(10, 22, 40, 0.8) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  padding: 4px !important;
+  border-radius: 12px !important;
+}
+[data-slot="tabs-trigger"][data-state="active"] {
+  background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+  color: white !important;
+  box-shadow: 0 2px 12px rgba(37,99,235,0.4) !important;
+  border-radius: 8px !important;
+}
+[data-slot="tabs-trigger"] {
+  color: #64748B !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.05em !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+/* ========== PROGRESS ========== */
+[data-slot="progress-indicator"] {
+  border-radius: 999px !important;
+}
+
+/* ========== SELECTION ========== */
+::selection { background: rgba(59, 130, 246, 0.3); color: #F1F5F9; }
 
 .page {
   display: none !important;

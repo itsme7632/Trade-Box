@@ -5,14 +5,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Map, Anchor, Package, TrendingUp, Calendar, Info, Clock, AlertTriangle, ShieldCheck, Ship } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Package, TrendingUp, Calendar, ShieldCheck, Ship, Anchor, Weight, Globe, Building, Hash, Zap, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
-import { Skeleton } from "@/components/ui/skeleton";
+
+const riskConfig: Record<string, { color: string; bg: string; label: string }> = {
+  A: { color: "#10B981", bg: "rgba(16,185,129,0.1)", label: "Low Risk" },
+  B: { color: "#3B82F6", bg: "rgba(59,130,246,0.1)", label: "Moderate" },
+  C: { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", label: "Medium" },
+  D: { color: "#EF4444", bg: "rgba(239,68,68,0.1)", label: "High Risk" },
+};
 
 export default function ShipmentDetail() {
   const params = useParams();
@@ -24,7 +28,7 @@ export default function ShipmentDetail() {
   const queryClient = useQueryClient();
 
   const fundSchema = z.object({
-    amount: z.coerce.number().min(shipment?.minInvestment || 1, `Minimum investment is ${shipment?.minInvestment} USDT`),
+    amount: z.coerce.number().min(shipment?.minInvestment || 1),
   });
 
   const form = useForm<z.infer<typeof fundSchema>>({
@@ -34,227 +38,314 @@ export default function ShipmentDetail() {
 
   if (isLoading || !shipment) {
     return (
-      <div className="p-8 max-w-7xl mx-auto space-y-8">
-        <Skeleton className="h-10 w-48 bg-white" />
-        <Skeleton className="h-96 w-full bg-white rounded-xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <Skeleton className="col-span-2 h-64 bg-white rounded-xl" />
-          <Skeleton className="h-64 bg-white rounded-xl" />
+      <div className="min-h-screen bg-[#050D1B] p-4 md:p-8 space-y-4">
+        <div className="h-8 w-36 shimmer rounded-lg" />
+        <div className="h-48 shimmer rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="h-40 shimmer rounded-2xl" />
+            <div className="h-56 shimmer rounded-2xl" />
+          </div>
+          <div className="h-80 shimmer rounded-2xl" />
         </div>
       </div>
     );
   }
 
-  const isFunded = shipment.status !== 'open';
-  const progressPercent = Math.min(100, (shipment.fundingRaised / shipment.fundingGoal) * 100);
+  const risk = riskConfig[shipment.riskGrade] || riskConfig.C;
+  const fundPct = Math.min(100, (shipment.fundingRaised / shipment.fundingGoal) * 100);
+  const isFunded = shipment.status !== "open";
+  const watchAmount = form.watch("amount") || 0;
+  const estReturn = watchAmount * (1 + shipment.profitPercent / 100);
 
   const onFund = (data: z.infer<typeof fundSchema>) => {
-    fundMutation.mutate(
-      { id, data: { amount: data.amount } },
-      {
-        onSuccess: () => {
-          toast({ title: "Funding Successful", description: `You have invested ${data.amount.toLocaleString()} USDT in ${shipment.title}` });
-          queryClient.invalidateQueries({ queryKey: ["/api/shipments", id] });
-          form.reset();
-        },
-        onError: (err: any) => {
-          toast({ title: "Funding Failed", description: err.message, variant: "destructive" });
-        }
-      }
-    );
+    fundMutation.mutate({ id, data: { amount: data.amount } }, {
+      onSuccess: () => {
+        toast({ title: "Funded!", description: `Invested ${data.amount.toLocaleString()} USDT in ${shipment.title}` });
+        queryClient.invalidateQueries({ queryKey: ["/api/shipments", id] });
+        form.reset();
+      },
+      onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+    });
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F4F7FB] text-[#0F1923] p-4 md:p-8">
-      <div className="max-w-7xl mx-auto w-full space-y-6">
-        
-        <Link href="/market/shipments" className="inline-flex items-center gap-2 text-[#6A82A0] hover:text-[#0F1923] font-mono text-sm transition-colors w-fit">
-          <ArrowLeft className="h-4 w-4" /> Back to Market
+    <div className="min-h-screen bg-[#050D1B]">
+      {/* Back nav */}
+      <div className="px-4 pt-5 pb-3 md:px-8">
+        <Link href="/market/shipments">
+          <button className="flex items-center gap-2 text-sm font-mono text-[#475569] hover:text-[#94A3B8] transition-colors">
+            <ArrowLeft className="h-4 w-4" /> Back to Market
+          </button>
         </Link>
+      </div>
 
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className="bg-white text-[#3A4E66] px-3 py-1 rounded text-xs font-mono uppercase tracking-wider border border-[#EEF2F8]">
+      {/* Hero */}
+      <div className="px-4 md:px-8 mb-6">
+        <div className="rounded-2xl overflow-hidden relative"
+          style={{
+            background: "linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(10,22,40,0.98) 50%)",
+            border: "1px solid rgba(59,130,246,0.2)"
+          }}>
+          <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none opacity-20"
+            style={{ background: "radial-gradient(circle, rgba(59,130,246,0.4) 0%, transparent 70%)" }} />
+
+          <div className="p-6 md:p-8 relative z-10">
+            <div className="flex flex-wrap gap-2 mb-4">
+              <span className="px-2.5 py-1 rounded-full text-xs font-mono uppercase tracking-wider"
+                style={{ background: "rgba(255,255,255,0.05)", color: "#64748B", border: "1px solid rgba(255,255,255,0.08)" }}>
                 {shipment.cargoType}
               </span>
-              <span className={`px-3 py-1 rounded text-xs font-bold font-mono uppercase tracking-wider border
-                ${shipment.riskGrade === 'A' ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20" : 
-                  shipment.riskGrade === 'B' ? "bg-[#0066FF]/10 text-[#0066FF] border-[#0066FF]/20" : 
-                  shipment.riskGrade === 'C' ? "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20" : 
-                  "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20"}`}>
-                Risk {shipment.riskGrade}
+              <span className="px-2.5 py-1 rounded-full text-xs font-mono uppercase tracking-wider"
+                style={{ background: risk.bg, color: risk.color, border: `1px solid ${risk.color}30` }}>
+                Risk {shipment.riskGrade} · {risk.label}
               </span>
-              <span className={`px-3 py-1 rounded text-xs font-mono uppercase tracking-wider border
-                ${shipment.status === 'open' ? "bg-[#0066FF]/10 text-[#0066FF] border-[#0066FF]/20" : 
-                  "bg-white text-[#3A4E66] border-[#EEF2F8]"}`}>
-                {shipment.status.replace('_', ' ')}
+              <span className="px-2.5 py-1 rounded-full text-xs font-mono uppercase tracking-wider"
+                style={{
+                  background: shipment.status === "open" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)",
+                  color: shipment.status === "open" ? "#3B82F6" : "#10B981",
+                  border: `1px solid ${shipment.status === "open" ? "rgba(59,130,246,0.2)" : "rgba(16,185,129,0.2)"}`
+                }}>
+                {shipment.status.replace("_", " ")}
               </span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-heading font-bold text-[#0F1923] tracking-tight">{shipment.title}</h1>
-            <p className="text-[#6A82A0] mt-2 font-mono flex items-center gap-2">
-              <Anchor className="h-4 w-4" /> Vessel: <span className="text-[#0F1923]">{shipment.vesselName}</span>
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-xl border border-[#EEF2F8] text-right shrink-0 shadow-sm">
-            <p className="text-[#6A82A0] text-xs font-mono uppercase tracking-wider mb-1">Target Return</p>
-            <p className="text-3xl font-bold text-[#0066FF] font-mono">+{shipment.profitPercent}%</p>
+
+            <h1 className="text-2xl md:text-3xl font-bold text-white mb-3"
+              style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+              {shipment.title}
+            </h1>
+
+            <div className="flex flex-wrap items-center gap-4 text-sm font-mono text-[#475569]">
+              <span className="flex items-center gap-1.5">
+                <Anchor className="h-3.5 w-3.5 text-[#3B82F6]" /> {shipment.vesselName}
+              </span>
+              <span className="flex items-center gap-1.5 text-[#10B981] font-bold">
+                <TrendingUp className="h-3.5 w-3.5" /> +{shipment.profitPercent}% target return
+              </span>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Main Info Column */}
-          <div className="lg:col-span-2 space-y-6">
-            
-            {/* Route Map Vis */}
-            <div className="bg-white rounded-xl border border-[#EEF2F8] p-6 relative overflow-hidden shadow-sm">
-              <Map className="absolute -right-10 -bottom-10 h-64 w-64 text-[#EEF2F8] opacity-50 pointer-events-none" />
-              <h3 className="text-lg font-heading font-bold mb-6 flex items-center gap-2">
-                <Map className="h-5 w-5 text-[#0066FF]" /> Voyage Route
-              </h3>
-              
-              <div className="flex items-center justify-between relative z-10 px-4">
-                <div className="flex flex-col items-center">
-                  <div className="h-4 w-4 rounded-full bg-[#0066FF] mb-2 shadow-[0_0_10px_#0066FF]" />
-                  <p className="font-bold text-lg">{shipment.origin}</p>
-                  <p className="text-xs text-[#6A82A0] font-mono mt-1">{format(parseISO(shipment.departureDate), 'MMM dd, yyyy')}</p>
-                </div>
-                
-                <div className="flex-1 flex flex-col items-center justify-center px-4 relative">
-                  <p className="text-sm font-mono text-[#6A82A0] mb-2">{shipment.transitDays} Days Transit</p>
-                  <div className="w-full h-[2px] bg-[#DDE4EF] relative">
-                    <div className="absolute top-0 left-0 h-full bg-[#0066FF] w-1/3 animate-pulse" />
-                    <Ship className="absolute -top-3 left-1/3 h-6 w-6 text-[#0F1923] bg-white p-1 rounded-full border border-[#DDE4EF]" />
+      <div className="px-4 md:px-8 pb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+          {/* Main content */}
+          <div className="lg:col-span-2 space-y-5">
+
+            {/* Route visualization */}
+            <div className="rounded-2xl p-6"
+              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-2 mb-6">
+                <Globe className="h-4 w-4 text-[#3B82F6]" />
+                <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Voyage Route</span>
+              </div>
+
+              <div className="flex items-center gap-4 relative">
+                {/* Origin */}
+                <div className="flex flex-col items-center gap-2 min-w-[80px] md:min-w-[120px]">
+                  <div className="w-3 h-3 rounded-full"
+                    style={{ background: "#3B82F6", boxShadow: "0 0 12px rgba(59,130,246,0.6)" }} />
+                  <div className="text-center">
+                    <p className="font-bold text-sm text-[#E2E8F0] leading-tight">{shipment.origin}</p>
+                    <p className="text-[10px] font-mono text-[#334155] mt-0.5">
+                      {format(parseISO(shipment.departureDate), "MMM dd, yyyy")}
+                    </p>
                   </div>
                 </div>
-                
-                <div className="flex flex-col items-center">
-                  <div className="h-4 w-4 rounded-full border-2 border-[#22C55E] mb-2" />
-                  <p className="font-bold text-lg">{shipment.destination}</p>
-                  <p className="text-xs text-[#6A82A0] font-mono mt-1">{format(parseISO(shipment.arrivalDate), 'MMM dd, yyyy')}</p>
+
+                {/* Path */}
+                <div className="flex-1 flex flex-col items-center gap-2">
+                  <div className="text-[10px] font-mono text-[#475569] uppercase tracking-widest">{shipment.transitDays} days transit</div>
+                  <div className="w-full relative flex items-center">
+                    <div className="w-full h-px" style={{ background: "linear-gradient(90deg, #1E3A5F, rgba(59,130,246,0.3), #1E3A5F)" }} />
+                    <div className="absolute left-1/3 w-7 h-7 rounded-full flex items-center justify-center -translate-y-1/2 top-1/2 -translate-x-1/2"
+                      style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
+                      <Ship className="h-3.5 w-3.5 text-[#3B82F6]" />
+                    </div>
+                  </div>
+                  <div className="text-[10px] font-mono text-[#334155]">
+                    <span className="text-[#3B82F6]">ETA</span> {format(parseISO(shipment.arrivalDate), "MMM dd, yyyy")}
+                  </div>
+                </div>
+
+                {/* Destination */}
+                <div className="flex flex-col items-center gap-2 min-w-[80px] md:min-w-[120px]">
+                  <div className="w-3 h-3 rounded-full border-2"
+                    style={{ borderColor: "#10B981", boxShadow: "0 0 10px rgba(16,185,129,0.4)" }} />
+                  <div className="text-center">
+                    <p className="font-bold text-sm text-[#E2E8F0] leading-tight">{shipment.destination}</p>
+                    <p className="text-[10px] font-mono text-[#334155] mt-0.5">
+                      {format(parseISO(shipment.arrivalDate), "MMM dd, yyyy")}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Cargo Manifest */}
-            <div className="bg-white rounded-xl border border-[#EEF2F8] overflow-hidden shadow-sm">
-              <div className="p-4 bg-[#F8FAFD] border-b border-[#EEF2F8]">
-                <h3 className="text-lg font-heading font-bold flex items-center gap-2">
-                  <Package className="h-5 w-5 text-[#0066FF]" /> Cargo Manifest
-                </h3>
+            <div className="rounded-2xl overflow-hidden"
+              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="flex items-center gap-2 p-4"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <Package className="h-4 w-4 text-[#3B82F6]" />
+                <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Cargo Manifest</span>
               </div>
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-xs text-[#6A82A0] font-mono uppercase mb-1">Freight Forwarder</p>
-                  <p className="font-medium text-[#0F1923]">{shipment.freightForwarder}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#6A82A0] font-mono uppercase mb-1">HS Code</p>
-                  <p className="font-mono text-[#0F1923] bg-[#F8FAFD] px-2 py-1 rounded inline-block border border-[#EEF2F8]">
-                    {shipment.hsCode || "PENDING"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#6A82A0] font-mono uppercase mb-1">Total Weight</p>
-                  <p className="font-medium text-[#0F1923]">{shipment.weightTons ? `${shipment.weightTons.toLocaleString()} MT` : "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#6A82A0] font-mono uppercase mb-1">Volume</p>
-                  <p className="font-medium text-[#0F1923]">{shipment.volumeCbm ? `${shipment.volumeCbm.toLocaleString()} CBM` : "N/A"}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-xs text-[#6A82A0] font-mono uppercase mb-2">Description</p>
-                  <p className="text-[#3A4E66] text-sm leading-relaxed">{shipment.description || "Standard cargo description pending manifest finalization."}</p>
-                </div>
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[
+                  { icon: Building, label: "Freight Forwarder", value: shipment.freightForwarder },
+                  { icon: Hash, label: "HS Commodity Code", value: shipment.hsCode || "Pending" },
+                  { icon: Weight, label: "Total Weight", value: shipment.weightTons ? `${Number(shipment.weightTons).toLocaleString()} MT` : "N/A" },
+                  { icon: Package, label: "Volume", value: shipment.volumeCbm ? `${Number(shipment.volumeCbm).toLocaleString()} CBM` : "N/A" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl"
+                    style={{ background: "rgba(5,13,27,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ background: "rgba(59,130,246,0.1)" }}>
+                      <item.icon className="h-4 w-4 text-[#3B82F6]" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-0.5">{item.label}</div>
+                      <div className="text-sm text-[#E2E8F0] font-medium">{item.value}</div>
+                    </div>
+                  </div>
+                ))}
+
+                {shipment.description && (
+                  <div className="md:col-span-2 p-4 rounded-xl"
+                    style={{ background: "rgba(5,13,27,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-2">Description</div>
+                    <p className="text-sm text-[#94A3B8] leading-relaxed">{shipment.description}</p>
+                  </div>
+                )}
               </div>
             </div>
-
           </div>
 
-          {/* Action Column */}
-          <div className="space-y-6">
-            
-            {/* Funding Form */}
-            <div className="bg-white rounded-xl border border-[#0066FF]/30 p-6 relative shadow-sm">
-              <div className="absolute inset-0 bg-gradient-to-b from-[#0066FF]/5 to-transparent pointer-events-none rounded-xl" />
-              
-              <h3 className="text-xl font-heading font-bold mb-4 relative z-10">Fund Shipment</h3>
-              
-              <div className="mb-6 relative z-10">
-                <div className="flex justify-between items-end mb-2">
-                  <p className="text-sm font-mono text-[#6A82A0] uppercase tracking-wider">Raised</p>
-                  <p className="text-lg font-bold font-mono text-[#0F1923]">
-                    {shipment.fundingRaised.toLocaleString()}
-                    <span className="text-sm text-[#6A82A0] font-normal"> / {shipment.fundingGoal.toLocaleString()} USDT</span>
-                  </p>
+          {/* Sidebar - Funding */}
+          <div className="space-y-4">
+            {/* Funding card */}
+            <div className="rounded-2xl overflow-hidden sticky top-20"
+              style={{
+                background: "rgba(10,22,40,0.95)",
+                border: "1px solid rgba(59,130,246,0.2)",
+                backdropFilter: "blur(20px)"
+              }}>
+              <div className="h-0.5" style={{ background: "linear-gradient(90deg, #2563EB, #06B6D4)" }} />
+              <div className="p-5 space-y-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Fund Shipment</span>
+                  <span className="text-2xl font-bold text-[#3B82F6]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                    +{shipment.profitPercent}%
+                  </span>
                 </div>
-                <Progress value={progressPercent} className="h-3 bg-[#F8FAFD]" indicatorClassName="bg-[#0066FF]" />
-                <p className="text-right text-xs font-mono text-[#0066FF] mt-1 font-bold">{Math.round(progressPercent)}% Filled</p>
-              </div>
 
-              {isFunded ? (
-                <div className="bg-[#F8FAFD] p-4 rounded-lg border border-[#EEF2F8] text-center relative z-10">
-                  <Info className="h-6 w-6 text-[#6A82A0] mx-auto mb-2" />
-                  <p className="font-medium text-[#0F1923]">Funding Closed</p>
-                  <p className="text-sm text-[#6A82A0] mt-1">This shipment is no longer accepting funds.</p>
+                {/* Funding progress */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="text-[#475569]">Raised</span>
+                    <span className="text-[#E2E8F0] font-bold">
+                      {shipment.fundingRaised.toLocaleString()} <span className="text-[#475569]">/ {shipment.fundingGoal.toLocaleString()} USDT</span>
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${fundPct}%`,
+                        background: "linear-gradient(90deg, #2563EB, #06B6D4)",
+                        boxShadow: "0 0 8px rgba(37,99,235,0.6)"
+                      }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono">
+                    <span className="text-[#334155]">{Math.round(fundPct)}% funded</span>
+                    <span className="text-[#3B82F6]">{(shipment.fundingGoal - shipment.fundingRaised).toLocaleString()} USDT remaining</span>
+                  </div>
                 </div>
-              ) : (
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onFund)} className="space-y-4 relative z-10">
-                    <FormField
-                      control={form.control}
-                      name="amount"
-                      render={({ field }) => (
+
+                {isFunded ? (
+                  <div className="rounded-xl p-4 flex flex-col items-center text-center"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <Info className="h-5 w-5 text-[#475569] mb-2" />
+                    <p className="text-sm font-semibold text-[#94A3B8]">Funding Closed</p>
+                    <p className="text-xs text-[#475569] font-mono mt-1">No longer accepting investments.</p>
+                  </div>
+                ) : (
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onFund)} className="space-y-4">
+                      <FormField control={form.control} name="amount" render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[#3A4E66] font-mono text-xs uppercase">Investment Amount (USDT)</FormLabel>
+                          <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Investment Amount</FormLabel>
                           <FormControl>
                             <div className="relative">
-                              <Input 
-                                type="number" 
-                                className="pr-12 pl-4 bg-[#F8FAFD] border-[#EEF2F8] text-xl font-bold font-mono h-12 focus:border-[#0066FF] text-[#0F1923]" 
-                                {...field} 
-                              />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6A82A0] font-mono text-sm font-bold">USDT</span>
+                              <Input type="number" className="tb-input h-12 text-lg font-bold font-mono pr-16" {...field} />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#475569] font-bold">USDT</span>
                             </div>
                           </FormControl>
-                          <p className="text-xs text-[#6A82A0] font-mono text-right mt-1">Min: {shipment.minInvestment.toLocaleString()} USDT</p>
-                          <FormMessage />
+                          <p className="text-[10px] text-[#334155] font-mono">Min: {shipment.minInvestment.toLocaleString()} USDT</p>
+                          <FormMessage className="text-[#EF4444] text-xs" />
                         </FormItem>
+                      )} />
+
+                      {/* Return calc */}
+                      {watchAmount > 0 && (
+                        <div className="rounded-xl p-3 space-y-1.5"
+                          style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-[#475569]">Principal</span>
+                            <span className="text-[#E2E8F0]">{watchAmount.toLocaleString()} USDT</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-mono">
+                            <span className="text-[#475569]">Profit (+{shipment.profitPercent}%)</span>
+                            <span className="text-[#10B981]">+{(watchAmount * shipment.profitPercent / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</span>
+                          </div>
+                          <div className="h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+                          <div className="flex justify-between text-sm font-bold font-mono">
+                            <span className="text-[#94A3B8]">Total Return</span>
+                            <span className="text-[#10B981]">{estReturn.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</span>
+                          </div>
+                        </div>
                       )}
-                    />
 
-                    <div className="bg-[#F8FAFD] p-3 rounded border border-[#EEF2F8] flex justify-between items-center my-4">
-                      <span className="text-sm text-[#6A82A0]">Est. Return:</span>
-                      <span className="text-lg font-bold text-[#22C55E] font-mono">
-                        {(form.watch("amount") * (1 + shipment.profitPercent / 100)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT
-                      </span>
-                    </div>
+                      <button type="submit" disabled={fundMutation.isPending}
+                        className="w-full h-12 rounded-xl font-bold text-white transition-all disabled:opacity-50"
+                        style={{
+                          background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
+                          boxShadow: "0 4px 20px rgba(37,99,235,0.4)",
+                          fontFamily: "'Space Grotesk', sans-serif"
+                        }}>
+                        {fundMutation.isPending ? "Processing..." : "Commit Funds →"}
+                      </button>
+                    </form>
+                  </Form>
+                )}
 
-                    <Button 
-                      type="submit" 
-                      className="w-full h-12 bg-[#0066FF] hover:bg-[#0052CC] text-white font-heading text-lg tracking-wide"
-                      disabled={fundMutation.isPending}
-                    >
-                      {fundMutation.isPending ? "Processing..." : "Commit Funds"}
-                    </Button>
-                  </form>
-                </Form>
-              )}
+                {/* Security note */}
+                <div className="flex items-start gap-2 pt-2"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#1E3A5F] shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-[#334155] font-mono leading-relaxed">
+                    All shipments are insured for transit risk. ETA dates are maritime estimates.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Risk Disclaimer */}
-            <div className="bg-white rounded-xl border border-[#EEF2F8] p-5 shadow-sm">
-              <h4 className="font-bold flex items-center gap-2 mb-3 text-sm text-[#0F1923]">
-                <ShieldCheck className="h-4 w-4 text-[#6A82A0]" /> Investment Security
-              </h4>
-              <p className="text-xs text-[#6A82A0] leading-relaxed">
-                All shipments are insured for transit risk. However, global trade carries inherent delays. 
-                ETA dates are estimates based on standard maritime routing.
-              </p>
+            {/* Quick stats */}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Departure", value: format(parseISO(shipment.departureDate), "MMM dd"), icon: Calendar },
+                { label: "Arrival", value: format(parseISO(shipment.arrivalDate), "MMM dd"), icon: Calendar },
+              ].map((s, i) => (
+                <div key={i} className="rounded-xl p-3 flex flex-col gap-1"
+                  style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center gap-1 text-[#334155]">
+                    <s.icon className="h-3 w-3" />
+                    <span className="text-[10px] font-mono uppercase tracking-wider">{s.label}</span>
+                  </div>
+                  <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</span>
+                </div>
+              ))}
             </div>
-
           </div>
         </div>
       </div>
