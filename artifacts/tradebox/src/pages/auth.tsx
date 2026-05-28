@@ -5,11 +5,10 @@ import { useLogin, useRegister } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Anchor, Globe, Shield, TrendingUp, Lock, Mail, User } from "lucide-react";
+import { Anchor, Globe, Shield, TrendingUp, Lock, Mail, User, Check } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -21,6 +20,12 @@ const registerSchema = z.object({
   password: z.string().min(6),
   referralCode: z.string().optional(),
 });
+
+const features = [
+  { icon: Globe, label: "120+ Global Routes", desc: "Trade across every continent" },
+  { icon: TrendingUp, label: "Avg. 16.4% Returns", desc: "On verified shipments" },
+  { icon: Shield, label: "100% Insured Cargo", desc: "All transit risks covered" },
+];
 
 export function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -62,197 +67,249 @@ export function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#050D1B]">
-      {/* Left panel - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 relative overflow-hidden">
-        <div className="absolute inset-0"
-          style={{ background: "radial-gradient(ellipse at 30% 50%, rgba(37,99,235,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.1) 0%, transparent 50%)" }} />
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: "linear-gradient(rgba(59,130,246,1) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,1) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+    <div style={{ minHeight: "100vh", display: "flex", background: "#f6f8fb" }}>
 
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #2563EB, #0891B2)", boxShadow: "0 0 24px rgba(37,99,235,0.5)" }}>
-            <Anchor className="h-5 w-5 text-white" />
+      {/* Left panel — desktop only */}
+      <div style={{
+        display: "none",
+        width: "50%",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "48px",
+        background: "linear-gradient(145deg, #1e3a8a, #1d4ed8)",
+        position: "relative",
+        overflow: "hidden",
+      }} className="auth-left">
+
+        {/* Subtle pattern */}
+        <div style={{
+          position: "absolute", inset: 0, opacity: 0.04,
+          backgroundImage: "linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+        }} />
+        <div style={{ position: "absolute", bottom: "-80px", right: "-80px", width: "240px", height: "240px", borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+        <div style={{ position: "absolute", top: "-40px", left: "-40px", width: "160px", height: "160px", borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
+
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", position: "relative" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,0.2)" }}>
+            <Anchor size={18} color="white" />
           </div>
-          <span className="text-xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>TradeBox</span>
+          <span style={{ fontSize: "20px", fontWeight: 700, color: "white", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>TradeBox</span>
         </div>
 
-        <div className="relative z-10 space-y-8">
-          <div>
-            <h1 className="text-4xl font-bold text-white leading-tight mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
-              Global Trade<br />
-              <span style={{ background: "linear-gradient(135deg, #60A5FA, #06B6D4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                Finance Platform
-              </span>
-            </h1>
-            <p className="text-[#64748B] text-base leading-relaxed max-w-sm">
-              Fund international shipments, earn returns on real-world trade routes, and track your cargo in real time.
-            </p>
-          </div>
+        {/* Main copy */}
+        <div style={{ position: "relative" }}>
+          <h1 style={{ margin: "0 0 16px", fontSize: "38px", fontWeight: 800, color: "white", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.15 }}>
+            Global Trade<br />
+            <span style={{ color: "#93c5fd" }}>Finance Platform</span>
+          </h1>
+          <p style={{ margin: "0 0 40px", fontSize: "15px", color: "rgba(255,255,255,0.65)", lineHeight: 1.6, maxWidth: "380px" }}>
+            Fund international shipments, earn returns on real-world trade routes, and track your cargo in real time.
+          </p>
 
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { icon: Globe, label: "Global Routes", value: "120+" },
-              { icon: TrendingUp, label: "Avg Returns", value: "16.4%" },
-              { icon: Shield, label: "Insured Cargo", value: "100%" },
-            ].map((stat, i) => (
-              <div key={i} className="rounded-xl p-4"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <stat.icon className="h-4 w-4 text-[#3B82F6] mb-2" />
-                <div className="text-xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{stat.value}</div>
-                <div className="text-[11px] text-[#475569] font-mono mt-0.5">{stat.label}</div>
+          {/* Feature list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {features.map((f, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <f.icon size={16} color="rgba(255,255,255,0.9)" />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "white" }}>{f.label}</p>
+                  <p style={{ margin: 0, fontSize: "11px", color: "rgba(255,255,255,0.5)", fontFamily: "'JetBrains Mono', monospace" }}>{f.desc}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="text-[#334155] text-xs font-mono relative z-10">© 2026 TradeBox · Global Trade Finance Portal</div>
+        <p style={{ margin: 0, fontSize: "11px", color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace", position: "relative" }}>
+          © 2026 TradeBox · Global Trade Finance Portal
+        </p>
       </div>
 
-      {/* Right panel - auth form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 relative">
-        <div className="absolute inset-0 lg:hidden"
-          style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(37,99,235,0.12) 0%, transparent 60%)" }} />
+      {/* Right panel — auth form */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 16px",
+        background: "#f6f8fb",
+      }}>
+        <div style={{ width: "100%", maxWidth: "420px" }}>
 
-        <div className="w-full max-w-md relative z-10">
           {/* Mobile logo */}
-          <div className="flex flex-col items-center mb-8 lg:hidden">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: "linear-gradient(135deg, #2563EB, #0891B2)", boxShadow: "0 0 30px rgba(37,99,235,0.5)" }}>
-              <Anchor className="h-6 w-6 text-white" />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "32px" }} className="mobile-logo">
+            <div style={{
+              width: "52px", height: "52px", borderRadius: "16px",
+              background: "linear-gradient(135deg, #2563eb, #0891b2)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 8px 24px rgba(37,99,235,0.3)",
+              marginBottom: "12px",
+            }}>
+              <Anchor size={24} color="white" />
             </div>
-            <h2 className="text-2xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>TradeBox</h2>
-            <p className="text-[#475569] text-xs font-mono mt-1 uppercase tracking-widest">Global Trade Finance Portal</p>
+            <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+              TradeBox
+            </h2>
+            <p style={{ margin: "3px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Global Trade Finance Portal
+            </p>
           </div>
 
-          {/* Card */}
-          <div className="rounded-2xl p-8"
-            style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(24px)" }}>
-
-            {/* Tab toggle */}
-            <div className="flex p-1 rounded-xl mb-8"
-              style={{ background: "rgba(5,13,27,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}>
-              <button
-                onClick={() => setIsLogin(true)}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
-                style={isLogin ? {
-                  background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                  color: "white",
-                  boxShadow: "0 2px 12px rgba(37,99,235,0.4)",
-                  fontFamily: "'Space Grotesk', sans-serif"
-                } : { color: "#475569" }}>
+          {/* Auth card */}
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "24px",
+            boxShadow: "0 4px 32px rgba(0,0,0,0.08), 0 0 0 1px #e8edf2",
+            overflow: "hidden",
+          }}>
+            {/* Tab switcher */}
+            <div style={{ display: "flex", padding: "6px", background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+              <button onClick={() => setIsLogin(true)} style={{
+                flex: 1, padding: "10px", borderRadius: "14px", border: "none", cursor: "pointer",
+                fontSize: "13px", fontWeight: isLogin ? 700 : 500,
+                fontFamily: "'Space Grotesk', sans-serif",
+                background: isLogin ? "#ffffff" : "transparent",
+                color: isLogin ? "#2563eb" : "#94a3b8",
+                boxShadow: isLogin ? "0 1px 6px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.2s ease",
+              }}>
                 Sign In
               </button>
-              <button
-                onClick={() => setIsLogin(false)}
-                className="flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
-                style={!isLogin ? {
-                  background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                  color: "white",
-                  boxShadow: "0 2px 12px rgba(37,99,235,0.4)",
-                  fontFamily: "'Space Grotesk', sans-serif"
-                } : { color: "#475569" }}>
+              <button onClick={() => setIsLogin(false)} style={{
+                flex: 1, padding: "10px", borderRadius: "14px", border: "none", cursor: "pointer",
+                fontSize: "13px", fontWeight: !isLogin ? 700 : 500,
+                fontFamily: "'Space Grotesk', sans-serif",
+                background: !isLogin ? "#ffffff" : "transparent",
+                color: !isLogin ? "#2563eb" : "#94a3b8",
+                boxShadow: !isLogin ? "0 1px 6px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.2s ease",
+              }}>
                 Register
               </button>
             </div>
 
-            {isLogin ? (
-              <Form {...loginForm}>
-                <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-5">
-                  <FormField control={loginForm.control} name="email" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[#64748B] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5">
-                        <Mail className="h-3 w-3" /> Email Address
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="trader@example.com" className="tb-input h-12 text-sm" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
-                    </FormItem>
-                  )} />
-                  <FormField control={loginForm.control} name="password" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[#64748B] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5">
-                        <Lock className="h-3 w-3" /> Password
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" className="tb-input h-12 text-sm" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
-                    </FormItem>
-                  )} />
-                  <button type="submit"
-                    disabled={loginMutation.isPending}
-                    className="w-full h-12 rounded-xl font-semibold text-white text-sm transition-all duration-200 disabled:opacity-60 mt-2"
-                    style={{
-                      background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                      boxShadow: "0 4px 20px rgba(37,99,235,0.4)",
-                      fontFamily: "'Space Grotesk', sans-serif"
+            <div style={{ padding: "28px 24px" }}>
+              {isLogin ? (
+                <Form {...loginForm}>
+                  <form onSubmit={loginForm.handleSubmit(onLogin)} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <FormField control={loginForm.control} name="email" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <Mail size={11} color="#94a3b8" /> Email Address
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="trader@example.com" className="tb-input h-12 text-sm" {...field} />
+                        </FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <FormField control={loginForm.control} name="password" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <Lock size={11} color="#94a3b8" /> Password
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••" className="tb-input h-12 text-sm" {...field} />
+                        </FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <button type="submit" disabled={loginMutation.isPending} style={{
+                      height: "48px", borderRadius: "14px", border: "none", cursor: "pointer",
+                      fontSize: "15px", fontWeight: 700, color: "white",
+                      background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                      boxShadow: "0 4px 16px rgba(37,99,235,0.35)",
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      opacity: loginMutation.isPending ? 0.7 : 1,
+                      transition: "all 0.2s ease",
                     }}>
-                    {loginMutation.isPending ? "Authenticating..." : "Access Terminal"}
-                  </button>
-                </form>
-              </Form>
-            ) : (
-              <Form {...registerForm}>
-                <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-5">
-                  <FormField control={registerForm.control} name="email" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[#64748B] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5">
-                        <Mail className="h-3 w-3" /> Email Address
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="trader@example.com" className="tb-input h-12 text-sm" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
-                    </FormItem>
-                  )} />
-                  <FormField control={registerForm.control} name="password" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[#64748B] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5">
-                        <Lock className="h-3 w-3" /> Password
-                      </FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="Min. 6 characters" className="tb-input h-12 text-sm" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
-                    </FormItem>
-                  )} />
-                  <FormField control={registerForm.control} name="referralCode" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[#64748B] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5">
-                        <User className="h-3 w-3" /> Guild Code <span className="text-[#334155] normal-case">(optional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input placeholder="TB-XXXX" className="tb-input h-12 text-sm font-mono" {...field} />
-                      </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
-                    </FormItem>
-                  )} />
-                  <button type="submit"
-                    disabled={registerMutation.isPending}
-                    className="w-full h-12 rounded-xl font-semibold text-white text-sm transition-all duration-200 disabled:opacity-60 mt-2"
-                    style={{
-                      background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                      boxShadow: "0 4px 20px rgba(37,99,235,0.4)",
-                      fontFamily: "'Space Grotesk', sans-serif"
+                      {loginMutation.isPending ? "Signing In..." : "Sign In →"}
+                    </button>
+                  </form>
+                </Form>
+              ) : (
+                <Form {...registerForm}>
+                  <form onSubmit={registerForm.handleSubmit(onRegister)} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                    <FormField control={registerForm.control} name="email" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <Mail size={11} color="#94a3b8" /> Email Address
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="trader@example.com" className="tb-input h-12 text-sm" {...field} />
+                        </FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <FormField control={registerForm.control} name="password" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <Lock size={11} color="#94a3b8" /> Password
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Min. 6 characters" className="tb-input h-12 text-sm" {...field} />
+                        </FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <FormField control={registerForm.control} name="referralCode" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <User size={11} color="#94a3b8" /> Guild Code
+                          <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 400, textTransform: "none" }}>(optional)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="TB-XXXX" className="tb-input h-12 text-sm" style={{ fontFamily: "'JetBrains Mono', monospace" }} {...field} />
+                        </FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <button type="submit" disabled={registerMutation.isPending} style={{
+                      height: "48px", borderRadius: "14px", border: "none", cursor: "pointer",
+                      fontSize: "15px", fontWeight: 700, color: "white",
+                      background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                      boxShadow: "0 4px 16px rgba(37,99,235,0.35)",
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      opacity: registerMutation.isPending ? 0.7 : 1,
                     }}>
-                    {registerMutation.isPending ? "Creating Account..." : "Create Trader Account"}
-                  </button>
-                </form>
-              </Form>
-            )}
+                      {registerMutation.isPending ? "Creating Account..." : "Create Account →"}
+                    </button>
+                  </form>
+                </Form>
+              )}
 
-            <div className="mt-6 pt-6 flex items-center gap-3 text-xs text-[#334155]"
-              style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-              <Shield className="h-3.5 w-3.5 text-[#1E3A5F] shrink-0" />
-              <span>All transactions are encrypted and protected by industry-standard security.</span>
+              {/* Security note */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #f1f5f9" }}>
+                <Shield size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4 }}>
+                  All transactions are encrypted and protected by industry-standard security.
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Trust badges */}
+          <div style={{ display: "flex", justifyContent: "center", gap: "20px", marginTop: "20px" }}>
+            {["256-bit Encryption", "Insured Funds", "24/7 Support"].map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <Check size={10} color="#10b981" />
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{t}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
+      <style>{`
+        @media (min-width: 1024px) {
+          .auth-left { display: flex !important; }
+          .mobile-logo { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -2,20 +2,29 @@ import { useState } from "react";
 import { useListInvestments, type ListInvestmentsStatus } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Ship, Clock, CheckCircle2, TrendingUp, Search, ArrowRight, Package } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { format, parseISO } from "date-fns";
 
-const statusConfig = {
-  delivered: { color: "#10B981", bg: "rgba(16,185,129,0.1)", border: "rgba(16,185,129,0.2)", icon: CheckCircle2, label: "Delivered" },
-  active: { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.2)", icon: Clock, label: "In Transit" },
-  cancelled: { color: "#EF4444", bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.2)", icon: Ship, label: "Cancelled" },
+const statusCfg = {
+  delivered: { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: CheckCircle2, label: "Delivered" },
+  active: { color: "#d97706", bg: "#fffbeb", border: "#fde68a", icon: Clock, label: "In Transit" },
+  cancelled: { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", icon: Ship, label: "Cancelled" },
 };
 
 const filters: { id: ListInvestmentsStatus; label: string }[] = [
-  { id: "all", label: "All Cargo" },
+  { id: "all", label: "All" },
   { id: "active", label: "In Transit" },
   { id: "delivered", label: "Delivered" },
 ];
+
+const cargoEmoji: Record<string, string> = {
+  electronics: "⚡", agricultural: "🌿", cocoa: "🍫", coffee: "☕",
+  minerals: "⛏️", textiles: "🧵", lithium: "🔋", pharmaceuticals: "💊",
+  pharma: "💊", steel: "⚙️",
+};
+
+function S({ h = 100 }: { h?: number }) {
+  return <div className="shimmer" style={{ height: h, borderRadius: 14 }} />;
+}
 
 export default function Cargo() {
   const [statusFilter, setStatusFilter] = useState<ListInvestmentsStatus>("all");
@@ -30,44 +39,42 @@ export default function Cargo() {
   );
 
   return (
-    <div className="min-h-screen bg-[#050D1B]">
+    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
       {/* Header */}
-      <div className="px-4 pt-6 pb-4 md:px-8 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.08) 0%, transparent 60%)" }} />
-        <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-            My Cargo
-          </h1>
-          <p className="text-[#475569] text-xs font-mono uppercase tracking-widest">Active &amp; completed investments</p>
-        </div>
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "20px 16px 16px" }}>
+        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>My Cargo</h1>
+        <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Active & completed investments</p>
       </div>
 
-      <div className="px-4 md:px-8 pb-8 space-y-4">
+      <div style={{ padding: "16px", maxWidth: "720px", margin: "0 auto" }}>
+
         {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Filter tabs */}
-          <div className="flex gap-1 p-1 rounded-xl"
-            style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
+          {/* Filter pills */}
+          <div style={{ display: "flex", gap: "4px", padding: "3px", background: "#f1f5f9", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
             {filters.map(f => (
-              <button key={f.id} onClick={() => setStatusFilter(f.id)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-mono uppercase tracking-wider transition-all duration-200"
-                style={statusFilter === f.id ? {
-                  background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                  color: "white",
-                  boxShadow: "0 2px 10px rgba(37,99,235,0.35)"
-                } : { color: "#475569" }}>
-                {f.label}
-              </button>
+              <button key={f.id} onClick={() => setStatusFilter(f.id)} style={{
+                padding: "6px 14px", borderRadius: "9px", border: "none", cursor: "pointer",
+                fontSize: "12px", fontWeight: statusFilter === f.id ? 600 : 500,
+                background: statusFilter === f.id ? "#ffffff" : "transparent",
+                color: statusFilter === f.id ? "#2563eb" : "#64748b",
+                boxShadow: statusFilter === f.id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                transition: "all 0.15s ease",
+              }}>{f.label}</button>
             ))}
           </div>
 
           {/* Search */}
-          <div className="relative flex-1 sm:max-w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#334155]" />
-            <Input
+          <div style={{ position: "relative", flex: 1, minWidth: "160px" }}>
+            <Search size={13} color="#94a3b8" style={{ position: "absolute", left: "11px", top: "50%", transform: "translateY(-50%)" }} />
+            <input
               placeholder="Search cargo..."
-              className="tb-input h-9 pl-9 text-sm"
+              style={{
+                width: "100%", height: "38px", paddingLeft: "32px", paddingRight: "12px",
+                borderRadius: "10px", border: "1.5px solid #e2e8f0",
+                background: "#ffffff", fontSize: "13px", color: "#0f172a",
+                outline: "none", fontFamily: "'Inter', sans-serif",
+              }}
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -76,148 +83,114 @@ export default function Cargo() {
 
         {/* Portfolio summary */}
         {!isLoading && filtered && filtered.length > 0 && (
-          <div className="grid grid-cols-3 gap-3">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "8px", marginBottom: "16px" }}>
             {[
-              {
-                label: "Total Committed",
-                value: `${filtered.reduce((a, i) => a + i.amount, 0).toLocaleString()} USDT`,
-                color: "#3B82F6"
-              },
-              {
-                label: "Expected Profit",
-                value: `+${filtered.reduce((a, i) => a + (i.expectedProfit || 0), 0).toLocaleString()} USDT`,
-                color: "#F59E0B"
-              },
-              {
-                label: "Realized Profit",
-                value: `+${filtered.reduce((a, i) => a + (i.actualProfit || 0), 0).toLocaleString()} USDT`,
-                color: "#10B981"
-              },
+              { label: "Committed", value: `${filtered.reduce((a, i) => a + i.amount, 0).toLocaleString()} USDT`, color: "#2563eb" },
+              { label: "Expected", value: `+${filtered.reduce((a, i) => a + (i.expectedProfit || 0), 0).toLocaleString()} USDT`, color: "#d97706" },
+              { label: "Realized", value: `+${filtered.reduce((a, i) => a + (i.actualProfit || 0), 0).toLocaleString()} USDT`, color: "#059669" },
             ].map((s, i) => (
-              <div key={i} className="rounded-xl p-3"
-                style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-1">{s.label}</div>
-                <div className="text-sm font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif", color: s.color }}>
-                  {s.value}
-                </div>
+              <div key={i} style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                <div style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>{s.label}</div>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Cargo list */}
+        {/* List */}
         {isLoading ? (
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => <div key={i} className="h-32 shimmer rounded-2xl" />)}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {[...Array(3)].map((_, i) => <S key={i} h={130} />)}
           </div>
         ) : filtered && filtered.length > 0 ? (
-          <div className="space-y-3">
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {filtered.map(inv => {
-              const cfg = statusConfig[inv.status as keyof typeof statusConfig] || statusConfig.active;
+              const cfg = statusCfg[inv.status as keyof typeof statusCfg] || statusCfg.active;
               const StatusIcon = cfg.icon;
               const isActive = inv.status === "active";
               const isDelivered = inv.status === "delivered";
+              const emoji = cargoEmoji[inv.shipment?.cargoType || ""] || "📦";
 
               return (
-                <div key={inv.id} className="rounded-2xl overflow-hidden card-hover"
-                  style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  {/* Top accent bar */}
-                  <div className="h-0.5" style={{ background: `linear-gradient(90deg, ${cfg.color}60, transparent)` }} />
-
-                  <div className="p-5">
-                    <div className="flex flex-col md:flex-row gap-5">
-                      {/* Left info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider"
-                            style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-                            <StatusIcon className="h-2.5 w-2.5" />
+                <div key={inv.id} style={{
+                  background: "#ffffff", border: "1px solid #e8edf2",
+                  borderRadius: "16px", overflow: "hidden",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                }}>
+                  <div style={{ height: "3px", background: cfg.color }} />
+                  <div style={{ padding: "14px 16px" }}>
+                    {/* Header row */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "10px" }}>
+                      <span style={{ fontSize: "22px", flexShrink: 0, marginTop: "2px" }}>{emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", flexWrap: "wrap" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 600, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, fontFamily: "'JetBrains Mono', monospace" }}>
+                            <StatusIcon size={9} style={{ marginRight: "3px", display: "inline" }} />
                             {cfg.label}
-                          </div>
+                          </span>
                           {inv.shipment?.cargoType && (
-                            <span className="text-[10px] font-mono text-[#334155] uppercase tracking-wider px-2 py-0.5 rounded-full"
-                              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                            <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "10px", color: "#64748b", background: "#f1f5f9", fontFamily: "'JetBrains Mono', monospace" }}>
                               {inv.shipment.cargoType}
                             </span>
                           )}
                         </div>
                         <Link href={`/market/shipments/${inv.shipmentId}`}>
-                          <h3 className="text-base font-bold text-[#E2E8F0] hover:text-[#60A5FA] transition-colors line-clamp-1 mb-2"
-                            style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                          <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#0f172a", lineHeight: 1.3, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
                             {inv.shipment?.title}
                           </h3>
                         </Link>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-[#475569] font-mono">
-                          {inv.shipment?.vesselName && (
-                            <span className="flex items-center gap-1">
-                              <Ship className="h-3 w-3 text-[#3B82F6]" /> {inv.shipment.vesselName}
-                            </span>
-                          )}
-                          {inv.shipment?.origin && inv.shipment?.destination && (
-                            <span className="flex items-center gap-1">
-                              {inv.shipment.origin.split(",")[0]}
-                              <ArrowRight className="h-2.5 w-2.5" />
-                              {inv.shipment.destination.split(",")[0]}
-                            </span>
-                          )}
-                        </div>
+                        {inv.shipment?.origin && inv.shipment?.destination && (
+                          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", display: "flex", alignItems: "center", gap: "4px" }}>
+                            <Ship size={10} /> {inv.shipment.origin.split(",")[0]} → {inv.shipment.destination.split(",")[0]}
+                          </p>
+                        )}
                       </div>
+                    </div>
 
-                      {/* Right stats */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:min-w-[320px]"
-                        style={{
-                          background: "rgba(5,13,27,0.5)",
-                          border: "1px solid rgba(255,255,255,0.04)",
-                          borderRadius: "14px",
-                          padding: "14px"
-                        }}>
-                        <div>
-                          <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-1">Committed</div>
-                          <div className="text-sm font-bold text-[#E2E8F0] font-mono">{inv.amount.toLocaleString()}<span className="text-[10px] text-[#475569] ml-0.5">USDT</span></div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-1">Return Rate</div>
-                          <div className="text-sm font-bold text-[#3B82F6] font-mono">+{inv.profitPercent}%</div>
-                        </div>
-                        <div className="col-span-2 md:col-span-1">
-                          <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-1 flex items-center gap-1">
-                            <TrendingUp className="h-2.5 w-2.5 text-[#10B981]" />
-                            {isDelivered ? "Realized" : "Expected"}
-                          </div>
-                          <div className="text-sm font-bold font-mono" style={{ color: isDelivered ? "#10B981" : "#F59E0B" }}>
-                            +{(inv.actualProfit || inv.expectedProfit || 0).toLocaleString()}
-                            <span className="text-[10px] opacity-60 ml-0.5">USDT</span>
-                          </div>
+                    {/* Stats row */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}>
+                      <div style={{ padding: "8px 10px", background: "#f8fafc", borderRadius: "10px", border: "1px solid #e8edf2" }}>
+                        <div style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", marginBottom: "2px" }}>Committed</div>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: "#0f172a", fontFamily: "'JetBrains Mono', monospace" }}>{inv.amount.toLocaleString()}</div>
+                      </div>
+                      <div style={{ padding: "8px 10px", background: "#eff6ff", borderRadius: "10px", border: "1px solid #bfdbfe" }}>
+                        <div style={{ fontSize: "9px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", marginBottom: "2px" }}>Return</div>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace" }}>+{inv.profitPercent}%</div>
+                      </div>
+                      <div style={{ padding: "8px 10px", background: isDelivered ? "#ecfdf5" : "#fffbeb", borderRadius: "10px", border: `1px solid ${isDelivered ? "#a7f3d0" : "#fde68a"}` }}>
+                        <div style={{ fontSize: "9px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", marginBottom: "2px" }}>{isDelivered ? "Realized" : "Expected"}</div>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: isDelivered ? "#059669" : "#d97706", fontFamily: "'JetBrains Mono', monospace" }}>
+                          +{(inv.actualProfit || inv.expectedProfit || 0).toLocaleString()}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Footer bar */}
+                  {/* Footer */}
                   {(isActive || isDelivered) && (
-                    <div className="px-5 py-2.5 flex justify-between items-center"
-                      style={{
-                        background: isDelivered ? "rgba(16,185,129,0.05)" : "rgba(59,130,246,0.05)",
-                        borderTop: `1px solid ${isDelivered ? "rgba(16,185,129,0.1)" : "rgba(59,130,246,0.1)"}`
-                      }}>
+                    <div style={{
+                      padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center",
+                      borderTop: "1px solid #f1f5f9",
+                      background: isDelivered ? "#f0fdf4" : "#fafbff",
+                    }}>
                       {isActive && inv.shipment && (
                         <>
-                          <span className="text-xs font-mono" style={{ color: "#3B82F6" }}>
-                            ETA: {format(parseISO(inv.shipment.arrivalDate), "MMM dd, yyyy")}
+                          <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                            ETA: <b style={{ color: "#0f172a" }}>{format(parseISO(inv.shipment.arrivalDate), "MMM dd, yyyy")}</b>
                           </span>
                           <Link href="/tracker">
-                            <span className="text-xs font-mono font-bold text-[#E2E8F0] hover:text-[#60A5FA] flex items-center gap-1 transition-colors">
-                              Track Live <ArrowRight className="h-3 w-3" />
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px" }}>
+                              Track <ArrowRight size={11} />
                             </span>
                           </Link>
                         </>
                       )}
                       {isDelivered && (
                         <>
-                          <span className="text-xs font-mono text-[#10B981]">
+                          <span style={{ fontSize: "11px", color: "#059669", fontFamily: "'JetBrains Mono', monospace" }}>
                             Delivered {inv.deliveredAt ? format(parseISO(inv.deliveredAt), "MMM dd, yyyy") : ""}
                           </span>
-                          <span className="text-xs font-mono text-[#334155]">Profit credited ✓</span>
+                          <span style={{ fontSize: "11px", color: "#059669", fontWeight: 600 }}>Profit credited ✓</span>
                         </>
                       )}
                     </div>
@@ -227,22 +200,14 @@ export default function Cargo() {
             })}
           </div>
         ) : (
-          <div className="rounded-2xl p-14 flex flex-col items-center text-center"
-            style={{ background: "rgba(10,22,40,0.5)", border: "1px dashed rgba(255,255,255,0.06)" }}>
-            <Package className="h-12 w-12 text-[#1E3A5F] mb-4" />
-            <h3 className="text-lg font-bold text-[#475569] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              No Cargo Found
-            </h3>
-            <p className="text-[#334155] font-mono text-sm mb-6">
-              {search ? "No investments match your search." : "You haven't invested in any shipments yet."}
+          <div style={{ background: "#ffffff", border: "1px dashed #e2e8f0", borderRadius: "16px", padding: "60px 20px", textAlign: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+            <Package size={36} color="#cbd5e1" style={{ marginBottom: "12px" }} />
+            <h3 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 700, color: "#64748b", fontFamily: "'Space Grotesk', sans-serif" }}>No Cargo Found</h3>
+            <p style={{ margin: "0 0 20px", fontSize: "12px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+              {search ? "No investments match your search." : "You haven't invested yet."}
             </p>
             <Link href="/market/shipments">
-              <button className="px-5 py-2.5 rounded-xl font-semibold text-white text-sm"
-                style={{
-                  background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                  boxShadow: "0 4px 16px rgba(37,99,235,0.35)",
-                  fontFamily: "'Space Grotesk', sans-serif"
-                }}>
+              <button style={{ padding: "10px 20px", borderRadius: "12px", background: "#2563eb", color: "white", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Browse Market
               </button>
             </Link>

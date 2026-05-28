@@ -3,7 +3,10 @@ import { useGetBalance, useGetCryptoAddresses, useGetLedger, useSubmitDeposit, u
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowDownToLine, ArrowUpFromLine, History, Copy, Check, AlertCircle, TrendingUp, Wallet as WalletIcon, ChevronDown } from "lucide-react";
+import {
+  ArrowDownToLine, ArrowUpFromLine, History, Copy, Check,
+  AlertCircle, TrendingUp, Wallet as WalletIcon, CreditCard
+} from "lucide-react";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,19 +28,23 @@ const withdrawSchema = z.object({
 
 type LedgerType = "all" | "deposits" | "withdrawals" | "deliveries" | "guild";
 
-const typeColors: Record<string, { bg: string; text: string }> = {
-  deposit: { bg: "rgba(16,185,129,0.1)", text: "#10B981" },
-  withdrawal: { bg: "rgba(239,68,68,0.1)", text: "#EF4444" },
-  delivery_profit: { bg: "rgba(16,185,129,0.1)", text: "#10B981" },
-  guild_commission: { bg: "rgba(139,92,246,0.1)", text: "#8B5CF6" },
-  investment: { bg: "rgba(59,130,246,0.1)", text: "#3B82F6" },
+function S({ h = 60, r = 10 }: { h?: number; r?: number }) {
+  return <div className="shimmer" style={{ height: h, borderRadius: r }} />;
+}
+
+const typeColor: Record<string, { text: string; bg: string }> = {
+  deposit: { text: "#059669", bg: "#ecfdf5" },
+  withdrawal: { text: "#dc2626", bg: "#fef2f2" },
+  delivery_profit: { text: "#059669", bg: "#ecfdf5" },
+  guild_commission: { text: "#7c3aed", bg: "#f5f3ff" },
+  investment: { text: "#2563eb", bg: "#eff6ff" },
 };
 
-const statusConfig: Record<string, { bg: string; text: string }> = {
-  cleared: { bg: "rgba(16,185,129,0.1)", text: "#10B981" },
-  rejected: { bg: "rgba(239,68,68,0.1)", text: "#EF4444" },
-  pending: { bg: "rgba(245,158,11,0.1)", text: "#F59E0B" },
-  pending_review: { bg: "rgba(245,158,11,0.1)", text: "#F59E0B" },
+const statusColor: Record<string, { text: string; bg: string }> = {
+  cleared: { text: "#059669", bg: "#ecfdf5" },
+  rejected: { text: "#dc2626", bg: "#fef2f2" },
+  pending: { text: "#d97706", bg: "#fffbeb" },
+  pending_review: { text: "#d97706", bg: "#fffbeb" },
 };
 
 export default function Wallet() {
@@ -46,8 +53,7 @@ export default function Wallet() {
   const [ledgerType, setLedgerType] = useState<LedgerType>("all");
   const { data: ledger, isLoading: isLedgerLoading } = useGetLedger({ type: ledgerType });
   const [copied, setCopied] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"deposit" | "withdraw" | "ledger">("deposit");
-
+  const [activeTab, setActiveTab] = useState<"deposit" | "withdraw" | "history">("deposit");
   const depositMutation = useSubmitDeposit();
   const withdrawMutation = useSubmitWithdrawal();
   const { toast } = useToast();
@@ -64,174 +70,169 @@ export default function Wallet() {
 
   const selectedCoin = depositForm.watch("coin");
   const currentAddress = addresses?.find(a => a.coin === selectedCoin);
-  const investAmount = withdrawForm.watch("amount");
+  const withdrawAmount = withdrawForm.watch("amount") || 0;
 
-  const copyToClipboard = (text: string) => {
+  const copyAddr = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(text);
     setTimeout(() => setCopied(null), 2000);
-    toast({ title: "Copied to clipboard" });
+    toast({ title: "Address copied" });
   };
 
   const onDeposit = (data: z.infer<typeof depositSchema>) => {
     depositMutation.mutate({ data }, {
-      onSuccess: () => { toast({ title: "Deposit submitted", description: "Pending admin review." }); depositForm.reset(); },
-      onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" })
+      onSuccess: () => { toast({ title: "Deposit submitted", description: "Pending review." }); depositForm.reset(); },
+      onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" })
     });
   };
 
   const onWithdraw = (data: z.infer<typeof withdrawSchema>) => {
-    if (balance && data.amount > balance.balance) {
-      toast({ title: "Insufficient funds", variant: "destructive" }); return;
-    }
+    if (balance && data.amount > balance.balance) { toast({ title: "Insufficient balance", variant: "destructive" }); return; }
     withdrawMutation.mutate({ data }, {
       onSuccess: () => { toast({ title: "Withdrawal submitted" }); withdrawForm.reset(); refetchBalance(); },
-      onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" })
+      onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" })
     });
   };
 
   const tabs = [
     { id: "deposit" as const, label: "Deposit", icon: ArrowDownToLine },
     { id: "withdraw" as const, label: "Withdraw", icon: ArrowUpFromLine },
-    { id: "ledger" as const, label: "History", icon: History },
+    { id: "history" as const, label: "History", icon: History },
   ];
 
-  const isPositive = (type: string) => ["deposit", "delivery_profit", "guild_commission"].includes(type);
+  const isPositive = (t: string) => ["deposit", "delivery_profit", "guild_commission"].includes(t);
 
   return (
-    <div className="min-h-screen bg-[#050D1B]">
+    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
       {/* Header */}
-      <div className="px-4 pt-6 pb-4 md:px-8 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.1) 0%, transparent 60%)" }} />
-        <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-            Wallet
-          </h1>
-          <p className="text-[#475569] text-xs font-mono uppercase tracking-widest">Manage your funds</p>
-        </div>
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "20px 16px 16px" }}>
+        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Wallet</h1>
+        <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Manage your funds</p>
       </div>
 
-      <div className="px-4 md:px-8 pb-8 space-y-5">
+      <div style={{ padding: "16px", maxWidth: "860px", margin: "0 auto" }}>
+
         {/* Balance cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Main balance */}
-          <div className="md:col-span-1 rounded-2xl p-6 relative overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg, rgba(37,99,235,0.2) 0%, rgba(10,22,40,0.95) 100%)",
-              border: "1px solid rgba(59,130,246,0.25)",
-              boxShadow: "0 8px 40px rgba(37,99,235,0.1)"
-            }}>
-            <div className="absolute top-0 right-0 w-40 h-40 pointer-events-none opacity-30"
-              style={{ background: "radial-gradient(circle, rgba(59,130,246,0.3) 0%, transparent 70%)" }} />
-            <div className="flex items-center gap-2 mb-4">
-              <WalletIcon className="h-4 w-4 text-[#3B82F6]" />
-              <span className="text-xs font-mono text-[#475569] uppercase tracking-widest">Available Balance</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
+          {/* Main balance - spans full */}
+          <div style={{
+            gridColumn: "1 / -1",
+            background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+            borderRadius: "18px",
+            padding: "22px",
+            boxShadow: "0 4px 20px rgba(37,99,235,0.3)",
+            color: "white",
+            position: "relative",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              position: "absolute", top: "-30px", right: "-30px",
+              width: "120px", height: "120px", borderRadius: "50%",
+              background: "rgba(255,255,255,0.06)", pointerEvents: "none",
+            }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <WalletIcon size={16} color="rgba(255,255,255,0.8)" />
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "rgba(255,255,255,0.7)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Available Balance
+              </span>
             </div>
-            {isBalanceLoading ? (
-              <div className="h-12 w-48 shimmer rounded-xl" />
-            ) : (
-              <div className="text-4xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-                {balance?.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                <span className="text-lg text-[#3B82F6] ml-1.5">USDT</span>
-              </div>
-            )}
+            {isBalanceLoading
+              ? <div style={{ height: "48px", width: "200px", borderRadius: "8px", background: "rgba(255,255,255,0.15)" }} />
+              : (
+                <div style={{ fontSize: "36px", fontWeight: 800, color: "white", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", lineHeight: 1 }}>
+                  {balance?.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <span style={{ fontSize: "18px", fontWeight: 600, marginLeft: "6px", color: "rgba(255,255,255,0.75)" }}>USDT</span>
+                </div>
+              )
+            }
           </div>
-
-          <div className="rounded-2xl p-5 flex flex-col gap-2"
-            style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <span className="text-[10px] font-mono text-[#475569] uppercase tracking-widest">Total Invested</span>
-            {isBalanceLoading ? <div className="h-8 w-32 shimmer rounded-lg" /> : (
-              <div className="text-2xl font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                {balance?.totalInvested.toLocaleString()} <span className="text-sm text-[#475569]">USDT</span>
+          {/* Sub-stats */}
+          {[
+            { label: "Total Invested", value: balance?.totalInvested, color: "#2563eb", icon: CreditCard },
+            { label: "Total Profits", value: balance?.totalProfits, color: "#059669", icon: TrendingUp, prefix: "+" },
+          ].map((s, i) => (
+            <div key={i} style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "14px", padding: "16px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</span>
+                <s.icon size={13} color={s.color} />
               </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl p-5 flex flex-col gap-2"
-            style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(16,185,129,0.15)" }}>
-            <span className="text-[10px] font-mono text-[#475569] uppercase tracking-widest flex items-center gap-1">
-              <TrendingUp className="h-3 w-3 text-[#10B981]" /> Total Profits
-            </span>
-            {isBalanceLoading ? <div className="h-8 w-32 shimmer rounded-lg" /> : (
-              <div className="text-2xl font-bold text-[#10B981]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                +{balance?.totalProfits.toLocaleString()} <span className="text-sm opacity-70">USDT</span>
-              </div>
-            )}
-          </div>
+              {isBalanceLoading ? <div className="shimmer" style={{ height: "24px", width: "80px" }} /> : (
+                <div style={{ fontSize: "18px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {s.prefix}{(s.value || 0).toLocaleString()}
+                  <span style={{ fontSize: "10px", fontWeight: 500, color: "#94a3b8", marginLeft: "4px" }}>USDT</span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 p-1 rounded-2xl"
-          style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", gap: "4px", padding: "4px", background: "#f1f5f9", borderRadius: "14px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-mono uppercase tracking-wider transition-all duration-200"
-              style={activeTab === tab.id ? {
-                background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                color: "white",
-                boxShadow: "0 2px 12px rgba(37,99,235,0.4)"
-              } : { color: "#475569" }}>
-              <tab.icon className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{tab.label}</span>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+              padding: "9px", borderRadius: "10px", border: "none", cursor: "pointer",
+              fontSize: "12px", fontWeight: activeTab === tab.id ? 600 : 500,
+              fontFamily: "'Inter', sans-serif",
+              background: activeTab === tab.id ? "#ffffff" : "transparent",
+              color: activeTab === tab.id ? "#2563eb" : "#64748b",
+              boxShadow: activeTab === tab.id ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+              transition: "all 0.15s ease",
+            }}>
+              <tab.icon size={14} />
+              {tab.label}
             </button>
           ))}
         </div>
 
         {/* Deposit Tab */}
         {activeTab === "deposit" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 animate-fade-in-up">
-            {/* Step 1: Select & Copy Address */}
-            <div className="rounded-2xl p-6 space-y-5"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <h3 className="font-bold text-[#E2E8F0] flex items-center gap-2"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                <span className="w-5 h-5 rounded-full bg-[#2563EB] text-white text-xs flex items-center justify-center">1</span>
-                Select Network & Copy Address
-              </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }} className="animate-fade-in-up">
+            {/* Step 1 */}
+            <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "white" }}>1</span>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Select Network & Copy Address
+                </h3>
+              </div>
               <Form {...depositForm}>
-                <div className="space-y-4">
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   <FormField control={depositForm.control} name="coin" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Cryptocurrency</FormLabel>
+                      <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Cryptocurrency</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-12 font-mono">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
+                        <FormControl><SelectTrigger className="h-11 tb-input"><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {addresses?.map(a => (
-                            <SelectItem key={a.coin} value={a.coin} className="font-mono">
-                              {a.coin} — {a.network}
-                            </SelectItem>
-                          ))}
+                          {addresses?.map(a => <SelectItem key={a.coin} value={a.coin} style={{ fontFamily: "'JetBrains Mono', monospace" }}>{a.coin} — {a.network}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </FormItem>
                   )} />
                   {currentAddress && (
-                    <div className="space-y-2">
-                      <label className="text-[#475569] text-xs font-mono uppercase tracking-wider block">
-                        {currentAddress.coin} Deposit Address ({currentAddress.network})
+                    <div>
+                      <label style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>
+                        {currentAddress.coin} Address ({currentAddress.network})
                       </label>
-                      <div className="flex overflow-hidden rounded-xl"
-                        style={{ background: "rgba(5,13,27,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                        <code className="flex-1 p-3 text-xs text-[#60A5FA] font-mono break-all leading-relaxed">
+                      <div style={{ display: "flex", overflow: "hidden", borderRadius: "10px", border: "1.5px solid #e2e8f0", background: "#f8fafc" }}>
+                        <code style={{ flex: 1, padding: "12px", fontSize: "11px", color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", wordBreak: "break-all", lineHeight: 1.5 }}>
                           {currentAddress.address}
                         </code>
-                        <button type="button" onClick={() => copyToClipboard(currentAddress.address)}
-                          className="px-4 flex items-center justify-center shrink-0 transition-colors hover:bg-white/3"
-                          style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
+                        <button type="button" onClick={() => copyAddr(currentAddress.address)} style={{
+                          padding: "0 14px", background: "#f1f5f9", border: "none",
+                          borderLeft: "1px solid #e2e8f0", cursor: "pointer", flexShrink: 0,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
                           {copied === currentAddress.address
-                            ? <Check className="h-4 w-4 text-[#10B981]" />
-                            : <Copy className="h-4 w-4 text-[#475569]" />}
+                            ? <Check size={15} color="#059669" />
+                            : <Copy size={15} color="#94a3b8" />}
                         </button>
                       </div>
-                      <div className="flex items-start gap-2 p-3 rounded-xl"
-                        style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
-                        <AlertCircle className="h-3.5 w-3.5 text-[#F59E0B] shrink-0 mt-0.5" />
-                        <p className="text-[11px] text-[#F59E0B] font-mono leading-relaxed">
+                      <div style={{ display: "flex", gap: "8px", marginTop: "10px", padding: "10px 12px", borderRadius: "10px", background: "#fffbeb", border: "1px solid #fde68a" }}>
+                        <AlertCircle size={14} color="#d97706" style={{ flexShrink: 0, marginTop: "1px" }} />
+                        <p style={{ margin: 0, fontSize: "11px", color: "#d97706", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
                           Send ONLY {currentAddress.coin} via {currentAddress.network}. Wrong network = permanent loss.
                         </p>
                       </div>
@@ -241,44 +242,45 @@ export default function Wallet() {
               </Form>
             </div>
 
-            {/* Step 2: Submit TXID */}
-            <div className="rounded-2xl p-6 space-y-5"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <h3 className="font-bold text-[#E2E8F0] flex items-center gap-2"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                <span className="w-5 h-5 rounded-full bg-[#2563EB] text-white text-xs flex items-center justify-center">2</span>
-                Confirm Transaction
-              </h3>
+            {/* Step 2 */}
+            <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "white" }}>2</span>
+                </div>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Confirm Transaction
+                </h3>
+              </div>
               <Form {...depositForm}>
-                <form onSubmit={depositForm.handleSubmit(onDeposit)} className="space-y-4">
+                <form onSubmit={depositForm.handleSubmit(onDeposit)} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   <FormField control={depositForm.control} name="amount" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Amount Sent (USDT Equiv)</FormLabel>
+                      <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Amount Sent (USDT equiv.)</FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Input type="number" className="tb-input h-12 pr-16 font-mono" {...field} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#475569] font-bold">USDT</span>
+                        <div style={{ position: "relative" }}>
+                          <Input type="number" className="tb-input h-11" style={{ paddingRight: "56px" }} {...field} />
+                          <span style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "11px", fontWeight: 700, color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>USDT</span>
                         </div>
                       </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
+                      <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                     </FormItem>
                   )} />
                   <FormField control={depositForm.control} name="txid" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Transaction Hash (TXID)</FormLabel>
+                      <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Transaction Hash (TXID)</FormLabel>
                       <FormControl>
-                        <Input className="tb-input h-12 font-mono text-xs" placeholder="0x... or blockchain txid" {...field} />
+                        <Input className="tb-input h-11" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px" }} placeholder="0x... or blockchain txid" {...field} />
                       </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
+                      <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                     </FormItem>
                   )} />
-                  <button type="submit" disabled={depositMutation.isPending}
-                    className="w-full h-12 rounded-xl font-semibold text-white text-sm transition-all disabled:opacity-50"
-                    style={{
-                      background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                      boxShadow: "0 4px 20px rgba(37,99,235,0.3)",
-                      fontFamily: "'Space Grotesk', sans-serif"
-                    }}>
+                  <button type="submit" disabled={depositMutation.isPending} style={{
+                    height: "44px", borderRadius: "12px", background: "#2563eb", color: "white",
+                    border: "none", fontSize: "14px", fontWeight: 600, cursor: "pointer",
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    boxShadow: "0 4px 12px rgba(37,99,235,0.3)", opacity: depositMutation.isPending ? 0.6 : 1,
+                  }}>
                     {depositMutation.isPending ? "Submitting..." : "Submit Deposit"}
                   </button>
                 </form>
@@ -289,75 +291,64 @@ export default function Wallet() {
 
         {/* Withdraw Tab */}
         {activeTab === "withdraw" && (
-          <div className="max-w-xl mx-auto animate-fade-in-up">
-            <div className="rounded-2xl p-6 space-y-5"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <h3 className="font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                Withdraw Funds
-              </h3>
+          <div style={{ maxWidth: "480px" }} className="animate-fade-in-up">
+            <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+              <h3 style={{ margin: "0 0 18px", fontSize: "15px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Withdraw Funds</h3>
               <Form {...withdrawForm}>
-                <form onSubmit={withdrawForm.handleSubmit(onWithdraw)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
+                <form onSubmit={withdrawForm.handleSubmit(onWithdraw)} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     <FormField control={withdrawForm.control} name="coin" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Receive In</FormLabel>
+                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Receive In</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-12 font-mono">
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
+                          <FormControl><SelectTrigger className="h-11 tb-input"><SelectValue /></SelectTrigger></FormControl>
                           <SelectContent>
-                            <SelectItem value="USDT" className="font-mono">USDT (TRC20)</SelectItem>
-                            <SelectItem value="BTC" className="font-mono">Bitcoin</SelectItem>
-                            <SelectItem value="ETH" className="font-mono">Ethereum</SelectItem>
+                            <SelectItem value="USDT">USDT (TRC20)</SelectItem>
+                            <SelectItem value="BTC">Bitcoin</SelectItem>
+                            <SelectItem value="ETH">Ethereum</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
                     )} />
                     <FormField control={withdrawForm.control} name="amount" render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Amount</FormLabel>
+                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Amount</FormLabel>
                         <FormControl>
-                          <div className="relative">
-                            <Input type="number" className="tb-input h-12 pr-16 font-mono" {...field} />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#475569] font-bold">USDT</span>
+                          <div style={{ position: "relative" }}>
+                            <Input type="number" className="tb-input h-11" style={{ paddingRight: "50px" }} {...field} />
+                            <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", fontWeight: 700, color: "#64748b" }}>USDT</span>
                           </div>
                         </FormControl>
-                        <FormMessage className="text-[#EF4444] text-xs" />
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
                   </div>
                   <FormField control={withdrawForm.control} name="walletAddress" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Destination Address</FormLabel>
+                      <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Destination Address</FormLabel>
                       <FormControl>
-                        <Input className="tb-input h-12 font-mono text-xs" placeholder="Paste wallet address..." {...field} />
+                        <Input className="tb-input h-11" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "11px" }} placeholder="Paste wallet address..." {...field} />
                       </FormControl>
-                      <FormMessage className="text-[#EF4444] text-xs" />
+                      <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                     </FormItem>
                   )} />
 
-                  <div className="rounded-xl p-4 flex justify-between items-center text-sm font-mono"
-                    style={{ background: "rgba(5,13,27,0.6)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span className="text-[#475569]">Processing Fee</span>
-                    <span className="text-[#E2E8F0] font-bold">2.00 USDT</span>
-                  </div>
-                  {balance && investAmount > 0 && (
-                    <div className="rounded-xl p-4 flex justify-between items-center text-sm font-mono"
-                      style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.12)" }}>
-                      <span className="text-[#475569]">You receive</span>
-                      <span className="text-[#10B981] font-bold">{Math.max(0, investAmount - 2).toFixed(2)} USDT</span>
+                  {[
+                    { label: "Processing Fee", value: "2.00 USDT" },
+                    ...(withdrawAmount > 0 ? [{ label: "You Receive", value: `${Math.max(0, withdrawAmount - 2).toFixed(2)} USDT`, green: true }] : [])
+                  ].map((row, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e8edf2" }}>
+                      <span style={{ fontSize: "12px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{row.label}</span>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: (row as any).green ? "#059669" : "#0f172a", fontFamily: "'JetBrains Mono', monospace" }}>{row.value}</span>
                     </div>
-                  )}
+                  ))}
 
-                  <button type="submit" disabled={withdrawMutation.isPending}
-                    className="w-full h-12 rounded-xl font-semibold text-white text-sm transition-all disabled:opacity-50"
-                    style={{
-                      background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                      boxShadow: "0 4px 20px rgba(37,99,235,0.3)",
-                      fontFamily: "'Space Grotesk', sans-serif"
-                    }}>
+                  <button type="submit" disabled={withdrawMutation.isPending} style={{
+                    height: "44px", borderRadius: "12px", background: "#2563eb", color: "white",
+                    border: "none", fontSize: "14px", fontWeight: 600, cursor: "pointer",
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    boxShadow: "0 4px 12px rgba(37,99,235,0.3)", opacity: withdrawMutation.isPending ? 0.6 : 1,
+                  }}>
                     {withdrawMutation.isPending ? "Processing..." : "Request Withdrawal"}
                   </button>
                 </form>
@@ -366,86 +357,81 @@ export default function Wallet() {
           </div>
         )}
 
-        {/* Ledger Tab */}
-        {activeTab === "ledger" && (
-          <div className="animate-fade-in-up space-y-3">
+        {/* History Tab */}
+        {activeTab === "history" && (
+          <div className="animate-fade-in-up" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {/* Filter pills */}
-            <div className="flex gap-2 flex-wrap">
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
               {(["all", "deposits", "withdrawals", "deliveries", "guild"] as LedgerType[]).map(type => (
-                <button key={type} onClick={() => setLedgerType(type)}
-                  className="px-3.5 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-wider transition-all duration-200"
-                  style={ledgerType === type ? {
-                    background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                    color: "white",
-                    boxShadow: "0 2px 8px rgba(37,99,235,0.3)"
-                  } : {
-                    background: "rgba(10,22,40,0.8)",
-                    color: "#475569",
-                    border: "1px solid rgba(255,255,255,0.06)"
-                  }}>
+                <button key={type} onClick={() => setLedgerType(type)} style={{
+                  padding: "5px 14px", borderRadius: "20px", cursor: "pointer",
+                  fontSize: "11px", fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+                  textTransform: "capitalize",
+                  background: ledgerType === type ? "#2563eb" : "#ffffff",
+                  color: ledgerType === type ? "white" : "#64748b",
+                  boxShadow: ledgerType === type ? "0 2px 8px rgba(37,99,235,0.3)" : "0 1px 3px rgba(0,0,0,0.08)",
+                  border: `1px solid ${ledgerType === type ? "#2563eb" : "#e2e8f0"}`,
+                  transition: "all 0.15s ease",
+                }}>
                   {type}
                 </button>
               ))}
             </div>
 
-            {/* Transactions list - mobile-first cards instead of table */}
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
               {isLedgerLoading ? (
-                <div className="p-4 space-y-3">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-16 shimmer rounded-xl" />
-                  ))}
+                <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {[...Array(5)].map((_, i) => <S key={i} h={60} />)}
                 </div>
               ) : ledger?.length ? (
-                <div className="divide-y" style={{ divideColor: "rgba(255,255,255,0.04)" }}>
-                  {ledger.map(entry => {
-                    const color = typeColors[entry.type] || { bg: "rgba(59,130,246,0.1)", text: "#3B82F6" };
-                    const status = statusConfig[entry.status] || { bg: "rgba(245,158,11,0.1)", text: "#F59E0B" };
+                <div>
+                  {ledger.map((entry, idx) => {
+                    const tc = typeColor[entry.type] || { text: "#2563eb", bg: "#eff6ff" };
+                    const sc = statusColor[entry.status] || { text: "#d97706", bg: "#fffbeb" };
                     const positive = isPositive(entry.type);
                     return (
-                      <div key={entry.id} className="p-4 flex items-start gap-3 hover:bg-white/1 transition-colors">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                          style={{ background: color.bg }}>
+                      <div key={entry.id} style={{
+                        display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px",
+                        borderBottom: idx < ledger.length - 1 ? "1px solid #f1f5f9" : "none",
+                      }}>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: tc.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           {positive
-                            ? <ArrowDownToLine className="h-4 w-4" style={{ color: color.text }} />
-                            : <ArrowUpFromLine className="h-4 w-4" style={{ color: color.text }} />}
+                            ? <ArrowDownToLine size={16} color={tc.text} />
+                            : <ArrowUpFromLine size={16} color={tc.text} />}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
-                              style={{ background: color.bg, color: color.text }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px", flexWrap: "wrap" }}>
+                            <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "9px", fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", background: tc.bg, color: tc.text }}>
                               {entry.type.replace(/_/g, " ")}
                             </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded uppercase"
-                              style={{ background: status.bg, color: status.text }}>
+                            <span style={{ padding: "1px 7px", borderRadius: "20px", fontSize: "9px", fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", background: sc.bg, color: sc.text }}>
                               {entry.status.replace(/_/g, " ")}
                             </span>
                           </div>
-                          <p className="text-sm text-[#94A3B8] truncate">{entry.description || "—"}</p>
-                          {entry.txid && (
-                            <p className="text-[10px] font-mono text-[#334155] truncate mt-0.5">{entry.txid}</p>
-                          )}
-                          <p className="text-[10px] font-mono text-[#334155] mt-1">
+                          <p style={{ margin: 0, fontSize: "12px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {entry.description || "—"}
+                          </p>
+                          <p style={{ margin: "2px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
                             {format(parseISO(entry.createdAt), "MMM dd, yyyy · HH:mm")}
                           </p>
                         </div>
-                        <div className={`text-sm font-bold font-mono whitespace-nowrap ${positive ? "text-[#10B981]" : "text-[#E2E8F0]"}`}>
-                          {positive ? "+" : "−"}{entry.amount.toLocaleString()} USDT
+                        <div style={{ fontSize: "13px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: positive ? "#059669" : "#0f172a", flexShrink: 0 }}>
+                          {positive ? "+" : "−"}{entry.amount.toLocaleString()}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="p-12 text-center">
-                  <History className="h-10 w-10 text-[#1E3A5F] mx-auto mb-3" />
-                  <p className="text-[#334155] font-mono text-sm">No transactions yet.</p>
+                <div style={{ padding: "48px 20px", textAlign: "center" }}>
+                  <History size={32} color="#cbd5e1" style={{ marginBottom: "10px" }} />
+                  <p style={{ margin: 0, fontSize: "13px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>No transactions yet.</p>
                 </div>
               )}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

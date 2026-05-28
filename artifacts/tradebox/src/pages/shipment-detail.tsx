@@ -5,32 +5,30 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Package, TrendingUp, Calendar, ShieldCheck, Ship, Anchor, Weight, Globe, Building, Hash, Zap, Info } from "lucide-react";
+import { ArrowLeft, Package, TrendingUp, Calendar, ShieldCheck, Ship, Weight, Globe, Building, Hash, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 
-const riskConfig: Record<string, { color: string; bg: string; label: string }> = {
-  A: { color: "#10B981", bg: "rgba(16,185,129,0.1)", label: "Low Risk" },
-  B: { color: "#3B82F6", bg: "rgba(59,130,246,0.1)", label: "Moderate" },
-  C: { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", label: "Medium" },
-  D: { color: "#EF4444", bg: "rgba(239,68,68,0.1)", label: "High Risk" },
+const riskCfg: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  A: { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "Low Risk" },
+  B: { color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", label: "Moderate" },
+  C: { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "Medium" },
+  D: { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "High Risk" },
 };
+
+function S({ h = 60 }: { h?: number }) { return <div className="shimmer" style={{ height: h, borderRadius: 12 }} />; }
 
 export default function ShipmentDetail() {
   const params = useParams();
   const id = parseInt(params.id || "0", 10);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: shipment, isLoading } = useGetShipment(id, { query: { enabled: !!id } as any });
   const fundMutation = useFundShipment();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const fundSchema = z.object({
-    amount: z.coerce.number().min(shipment?.minInvestment || 1),
-  });
-
+  const fundSchema = z.object({ amount: z.coerce.number().min(shipment?.minInvestment || 1) });
   const form = useForm<z.infer<typeof fundSchema>>({
     resolver: zodResolver(fundSchema),
     defaultValues: { amount: shipment?.minInvestment || 100 },
@@ -38,30 +36,27 @@ export default function ShipmentDetail() {
 
   if (isLoading || !shipment) {
     return (
-      <div className="min-h-screen bg-[#050D1B] p-4 md:p-8 space-y-4">
-        <div className="h-8 w-36 shimmer rounded-lg" />
-        <div className="h-48 shimmer rounded-2xl" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 space-y-4">
-            <div className="h-40 shimmer rounded-2xl" />
-            <div className="h-56 shimmer rounded-2xl" />
-          </div>
-          <div className="h-80 shimmer rounded-2xl" />
+      <div style={{ minHeight: "100vh", background: "#f6f8fb", padding: "16px", maxWidth: "760px", margin: "0 auto" }}>
+        <div style={{ height: "24px", width: "100px", marginBottom: "16px" }}><S h={24} /></div>
+        <S h={120} />
+        <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+          <S h={160} /><S h={200} /><S h={260} />
         </div>
       </div>
     );
   }
 
-  const risk = riskConfig[shipment.riskGrade] || riskConfig.C;
+  const risk = riskCfg[shipment.riskGrade] || riskCfg.C;
   const fundPct = Math.min(100, (shipment.fundingRaised / shipment.fundingGoal) * 100);
-  const isFunded = shipment.status !== "open";
+  const isClosed = shipment.status !== "open";
   const watchAmount = form.watch("amount") || 0;
-  const estReturn = watchAmount * (1 + shipment.profitPercent / 100);
+  const estProfit = watchAmount * (shipment.profitPercent / 100);
+  const estReturn = watchAmount + estProfit;
 
   const onFund = (data: z.infer<typeof fundSchema>) => {
     fundMutation.mutate({ id, data: { amount: data.amount } }, {
       onSuccess: () => {
-        toast({ title: "Funded!", description: `Invested ${data.amount.toLocaleString()} USDT in ${shipment.title}` });
+        toast({ title: "Funded!", description: `Invested ${data.amount.toLocaleString()} USDT` });
         queryClient.invalidateQueries({ queryKey: ["/api/shipments", id] });
         form.reset();
       },
@@ -70,285 +65,208 @@ export default function ShipmentDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050D1B]">
+    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
       {/* Back nav */}
-      <div className="px-4 pt-5 pb-3 md:px-8">
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "12px 16px" }}>
         <Link href="/market/shipments">
-          <button className="flex items-center gap-2 text-sm font-mono text-[#475569] hover:text-[#94A3B8] transition-colors">
-            <ArrowLeft className="h-4 w-4" /> Back to Market
+          <button style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#2563eb", padding: 0 }}>
+            <ArrowLeft size={14} /> Back to Market
           </button>
         </Link>
       </div>
 
-      {/* Hero */}
-      <div className="px-4 md:px-8 mb-6">
-        <div className="rounded-2xl overflow-hidden relative"
-          style={{
-            background: "linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(10,22,40,0.98) 50%)",
-            border: "1px solid rgba(59,130,246,0.2)"
-          }}>
-          <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none opacity-20"
-            style={{ background: "radial-gradient(circle, rgba(59,130,246,0.4) 0%, transparent 70%)" }} />
+      <div style={{ padding: "16px", maxWidth: "760px", margin: "0 auto" }}>
 
-          <div className="p-6 md:p-8 relative z-10">
-            <div className="flex flex-wrap gap-2 mb-4">
-              <span className="px-2.5 py-1 rounded-full text-xs font-mono uppercase tracking-wider"
-                style={{ background: "rgba(255,255,255,0.05)", color: "#64748B", border: "1px solid rgba(255,255,255,0.08)" }}>
-                {shipment.cargoType}
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-mono uppercase tracking-wider"
-                style={{ background: risk.bg, color: risk.color, border: `1px solid ${risk.color}30` }}>
+        {/* Hero card */}
+        <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: "14px" }}>
+          <div style={{ height: "4px", background: `linear-gradient(90deg, ${risk.color}, ${risk.color}66)` }} />
+          <div style={{ padding: "20px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
+              <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, color: risk.color, background: risk.bg, border: `1px solid ${risk.border}`, fontFamily: "'JetBrains Mono', monospace" }}>
                 Risk {shipment.riskGrade} · {risk.label}
               </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-mono uppercase tracking-wider"
-                style={{
-                  background: shipment.status === "open" ? "rgba(59,130,246,0.1)" : "rgba(16,185,129,0.1)",
-                  color: shipment.status === "open" ? "#3B82F6" : "#10B981",
-                  border: `1px solid ${shipment.status === "open" ? "rgba(59,130,246,0.2)" : "rgba(16,185,129,0.2)"}`
-                }}>
+              <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, color: "#64748b", background: "#f1f5f9", fontFamily: "'JetBrains Mono', monospace" }}>
+                {shipment.cargoType}
+              </span>
+              <span style={{
+                padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, fontFamily: "'JetBrains Mono', monospace",
+                color: shipment.status === "open" ? "#2563eb" : "#059669",
+                background: shipment.status === "open" ? "#eff6ff" : "#ecfdf5",
+              }}>
                 {shipment.status.replace("_", " ")}
               </span>
             </div>
-
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-3"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+            <h1 style={{ margin: "0 0 10px", fontSize: "22px", fontWeight: 800, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", lineHeight: 1.25 }}>
               {shipment.title}
             </h1>
-
-            <div className="flex flex-wrap items-center gap-4 text-sm font-mono text-[#475569]">
-              <span className="flex items-center gap-1.5">
-                <Anchor className="h-3.5 w-3.5 text-[#3B82F6]" /> {shipment.vesselName}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "13px" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "5px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                <Ship size={13} color="#94a3b8" /> {shipment.vesselName}
               </span>
-              <span className="flex items-center gap-1.5 text-[#10B981] font-bold">
-                <TrendingUp className="h-3.5 w-3.5" /> +{shipment.profitPercent}% target return
+              <span style={{ display: "flex", alignItems: "center", gap: "5px", color: "#059669", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
+                <TrendingUp size={13} /> +{shipment.profitPercent}% target return
               </span>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="px-4 md:px-8 pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "14px" }} className="detail-grid">
 
-          {/* Main content */}
-          <div className="lg:col-span-2 space-y-5">
-
-            {/* Route visualization */}
-            <div className="rounded-2xl p-6"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center gap-2 mb-6">
-                <Globe className="h-4 w-4 text-[#3B82F6]" />
-                <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Voyage Route</span>
-              </div>
-
-              <div className="flex items-center gap-4 relative">
-                {/* Origin */}
-                <div className="flex flex-col items-center gap-2 min-w-[80px] md:min-w-[120px]">
-                  <div className="w-3 h-3 rounded-full"
-                    style={{ background: "#3B82F6", boxShadow: "0 0 12px rgba(59,130,246,0.6)" }} />
-                  <div className="text-center">
-                    <p className="font-bold text-sm text-[#E2E8F0] leading-tight">{shipment.origin}</p>
-                    <p className="text-[10px] font-mono text-[#334155] mt-0.5">
-                      {format(parseISO(shipment.departureDate), "MMM dd, yyyy")}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Path */}
-                <div className="flex-1 flex flex-col items-center gap-2">
-                  <div className="text-[10px] font-mono text-[#475569] uppercase tracking-widest">{shipment.transitDays} days transit</div>
-                  <div className="w-full relative flex items-center">
-                    <div className="w-full h-px" style={{ background: "linear-gradient(90deg, #1E3A5F, rgba(59,130,246,0.3), #1E3A5F)" }} />
-                    <div className="absolute left-1/3 w-7 h-7 rounded-full flex items-center justify-center -translate-y-1/2 top-1/2 -translate-x-1/2"
-                      style={{ background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.3)" }}>
-                      <Ship className="h-3.5 w-3.5 text-[#3B82F6]" />
-                    </div>
-                  </div>
-                  <div className="text-[10px] font-mono text-[#334155]">
-                    <span className="text-[#3B82F6]">ETA</span> {format(parseISO(shipment.arrivalDate), "MMM dd, yyyy")}
-                  </div>
-                </div>
-
-                {/* Destination */}
-                <div className="flex flex-col items-center gap-2 min-w-[80px] md:min-w-[120px]">
-                  <div className="w-3 h-3 rounded-full border-2"
-                    style={{ borderColor: "#10B981", boxShadow: "0 0 10px rgba(16,185,129,0.4)" }} />
-                  <div className="text-center">
-                    <p className="font-bold text-sm text-[#E2E8F0] leading-tight">{shipment.destination}</p>
-                    <p className="text-[10px] font-mono text-[#334155] mt-0.5">
-                      {format(parseISO(shipment.arrivalDate), "MMM dd, yyyy")}
-                    </p>
-                  </div>
-                </div>
-              </div>
+          {/* Route */}
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", padding: "18px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "16px" }}>
+              <Globe size={15} color="#2563eb" />
+              <h3 style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Voyage Route</h3>
             </div>
-
-            {/* Cargo Manifest */}
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center gap-2 p-4"
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                <Package className="h-4 w-4 text-[#3B82F6]" />
-                <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Cargo Manifest</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ textAlign: "center", minWidth: "80px" }}>
+                <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#2563eb", margin: "0 auto 6px", boxShadow: "0 0 8px rgba(37,99,235,0.4)" }} />
+                <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#0f172a" }}>{shipment.origin}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(parseISO(shipment.departureDate), "MMM dd")}</p>
               </div>
-              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[
-                  { icon: Building, label: "Freight Forwarder", value: shipment.freightForwarder },
-                  { icon: Hash, label: "HS Commodity Code", value: shipment.hsCode || "Pending" },
-                  { icon: Weight, label: "Total Weight", value: shipment.weightTons ? `${Number(shipment.weightTons).toLocaleString()} MT` : "N/A" },
-                  { icon: Package, label: "Volume", value: shipment.volumeCbm ? `${Number(shipment.volumeCbm).toLocaleString()} CBM` : "N/A" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl"
-                    style={{ background: "rgba(5,13,27,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                      style={{ background: "rgba(59,130,246,0.1)" }}>
-                      <item.icon className="h-4 w-4 text-[#3B82F6]" />
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-0.5">{item.label}</div>
-                      <div className="text-sm text-[#E2E8F0] font-medium">{item.value}</div>
-                    </div>
-                  </div>
-                ))}
-
-                {shipment.description && (
-                  <div className="md:col-span-2 p-4 rounded-xl"
-                    style={{ background: "rgba(5,13,27,0.5)", border: "1px solid rgba(255,255,255,0.04)" }}>
-                    <div className="text-[10px] font-mono text-[#334155] uppercase tracking-wider mb-2">Description</div>
-                    <p className="text-sm text-[#94A3B8] leading-relaxed">{shipment.description}</p>
-                  </div>
-                )}
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                <span style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}>{shipment.transitDays}d transit</span>
+                <div style={{ width: "100%", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
+                  <Ship size={14} color="#2563eb" />
+                  <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
+                </div>
+                <span style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>ETA {format(parseISO(shipment.arrivalDate), "MMM dd, yyyy")}</span>
+              </div>
+              <div style={{ textAlign: "center", minWidth: "80px" }}>
+                <div style={{ width: "10px", height: "10px", borderRadius: "50%", border: "2px solid #059669", margin: "0 auto 6px", boxShadow: "0 0 6px rgba(5,150,105,0.3)" }} />
+                <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "#0f172a" }}>{shipment.destination}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(parseISO(shipment.arrivalDate), "MMM dd")}</p>
               </div>
             </div>
           </div>
 
-          {/* Sidebar - Funding */}
-          <div className="space-y-4">
-            {/* Funding card */}
-            <div className="rounded-2xl overflow-hidden sticky top-20"
-              style={{
-                background: "rgba(10,22,40,0.95)",
-                border: "1px solid rgba(59,130,246,0.2)",
-                backdropFilter: "blur(20px)"
-              }}>
-              <div className="h-0.5" style={{ background: "linear-gradient(90deg, #2563EB, #06B6D4)" }} />
-              <div className="p-5 space-y-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Fund Shipment</span>
-                  <span className="text-2xl font-bold text-[#3B82F6]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                    +{shipment.profitPercent}%
-                  </span>
-                </div>
-
-                {/* Funding progress */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs font-mono">
-                    <span className="text-[#475569]">Raised</span>
-                    <span className="text-[#E2E8F0] font-bold">
-                      {shipment.fundingRaised.toLocaleString()} <span className="text-[#475569]">/ {shipment.fundingGoal.toLocaleString()} USDT</span>
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${fundPct}%`,
-                        background: "linear-gradient(90deg, #2563EB, #06B6D4)",
-                        boxShadow: "0 0 8px rgba(37,99,235,0.6)"
-                      }} />
-                  </div>
-                  <div className="flex justify-between text-[10px] font-mono">
-                    <span className="text-[#334155]">{Math.round(fundPct)}% funded</span>
-                    <span className="text-[#3B82F6]">{(shipment.fundingGoal - shipment.fundingRaised).toLocaleString()} USDT remaining</span>
-                  </div>
-                </div>
-
-                {isFunded ? (
-                  <div className="rounded-xl p-4 flex flex-col items-center text-center"
-                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <Info className="h-5 w-5 text-[#475569] mb-2" />
-                    <p className="text-sm font-semibold text-[#94A3B8]">Funding Closed</p>
-                    <p className="text-xs text-[#475569] font-mono mt-1">No longer accepting investments.</p>
-                  </div>
-                ) : (
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onFund)} className="space-y-4">
-                      <FormField control={form.control} name="amount" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[#475569] text-xs font-mono uppercase tracking-wider">Investment Amount</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input type="number" className="tb-input h-12 text-lg font-bold font-mono pr-16" {...field} />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#475569] font-bold">USDT</span>
-                            </div>
-                          </FormControl>
-                          <p className="text-[10px] text-[#334155] font-mono">Min: {shipment.minInvestment.toLocaleString()} USDT</p>
-                          <FormMessage className="text-[#EF4444] text-xs" />
-                        </FormItem>
-                      )} />
-
-                      {/* Return calc */}
-                      {watchAmount > 0 && (
-                        <div className="rounded-xl p-3 space-y-1.5"
-                          style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
-                          <div className="flex justify-between text-xs font-mono">
-                            <span className="text-[#475569]">Principal</span>
-                            <span className="text-[#E2E8F0]">{watchAmount.toLocaleString()} USDT</span>
-                          </div>
-                          <div className="flex justify-between text-xs font-mono">
-                            <span className="text-[#475569]">Profit (+{shipment.profitPercent}%)</span>
-                            <span className="text-[#10B981]">+{(watchAmount * shipment.profitPercent / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</span>
-                          </div>
-                          <div className="h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
-                          <div className="flex justify-between text-sm font-bold font-mono">
-                            <span className="text-[#94A3B8]">Total Return</span>
-                            <span className="text-[#10B981]">{estReturn.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</span>
-                          </div>
-                        </div>
-                      )}
-
-                      <button type="submit" disabled={fundMutation.isPending}
-                        className="w-full h-12 rounded-xl font-bold text-white transition-all disabled:opacity-50"
-                        style={{
-                          background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                          boxShadow: "0 4px 20px rgba(37,99,235,0.4)",
-                          fontFamily: "'Space Grotesk', sans-serif"
-                        }}>
-                        {fundMutation.isPending ? "Processing..." : "Commit Funds →"}
-                      </button>
-                    </form>
-                  </Form>
-                )}
-
-                {/* Security note */}
-                <div className="flex items-start gap-2 pt-2"
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#1E3A5F] shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-[#334155] font-mono leading-relaxed">
-                    All shipments are insured for transit risk. ETA dates are maritime estimates.
-                  </p>
-                </div>
-              </div>
+          {/* Manifest */}
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "7px", padding: "14px 16px", borderBottom: "1px solid #f1f5f9" }}>
+              <Package size={14} color="#2563eb" />
+              <h3 style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Cargo Manifest</h3>
             </div>
-
-            {/* Quick stats */}
-            <div className="grid grid-cols-2 gap-3">
+            <div style={{ padding: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               {[
-                { label: "Departure", value: format(parseISO(shipment.departureDate), "MMM dd"), icon: Calendar },
-                { label: "Arrival", value: format(parseISO(shipment.arrivalDate), "MMM dd"), icon: Calendar },
-              ].map((s, i) => (
-                <div key={i} className="rounded-xl p-3 flex flex-col gap-1"
-                  style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div className="flex items-center gap-1 text-[#334155]">
-                    <s.icon className="h-3 w-3" />
-                    <span className="text-[10px] font-mono uppercase tracking-wider">{s.label}</span>
+                { icon: Building, label: "Freight Forwarder", value: shipment.freightForwarder },
+                { icon: Hash, label: "HS Code", value: shipment.hsCode || "Pending" },
+                { icon: Weight, label: "Weight", value: shipment.weightTons ? `${Number(shipment.weightTons).toLocaleString()} MT` : "N/A" },
+                { icon: Package, label: "Volume", value: shipment.volumeCbm ? `${Number(shipment.volumeCbm).toLocaleString()} CBM` : "N/A" },
+              ].map((item, i) => (
+                <div key={i} style={{ padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e8edf2" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "4px" }}>
+                    <item.icon size={12} color="#94a3b8" />
+                    <span style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.label}</span>
                   </div>
-                  <span className="text-sm font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</span>
+                  <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "#0f172a" }}>{item.value}</p>
                 </div>
               ))}
+              {shipment.description && (
+                <div style={{ gridColumn: "1 / -1", padding: "10px 12px", borderRadius: "10px", background: "#f8fafc", border: "1px solid #e8edf2" }}>
+                  <div style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", marginBottom: "5px" }}>Description</div>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#475569", lineHeight: 1.5 }}>{shipment.description}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Fund card */}
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+            <div style={{ height: "3px", background: "linear-gradient(90deg, #2563eb, #0891b2)" }} />
+            <div style={{ padding: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+                <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Fund Shipment</h3>
+                <span style={{ fontSize: "22px", fontWeight: 800, color: "#2563eb", fontFamily: "'Space Grotesk', sans-serif" }}>+{shipment.profitPercent}%</span>
+              </div>
+
+              {/* Progress */}
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "11px" }}>
+                  <span style={{ color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                    {shipment.fundingRaised.toLocaleString()} / {shipment.fundingGoal.toLocaleString()} USDT
+                  </span>
+                  <span style={{ fontWeight: 700, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(fundPct)}%</span>
+                </div>
+                <div style={{ height: "8px", borderRadius: "999px", background: "#f1f5f9", overflow: "hidden" }}>
+                  <div style={{ width: `${fundPct}%`, height: "100%", borderRadius: "999px", background: "linear-gradient(90deg, #2563eb, #0891b2)", transition: "width 0.5s ease" }} />
+                </div>
+                <p style={{ margin: "4px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                  {(shipment.fundingGoal - shipment.fundingRaised).toLocaleString()} USDT remaining
+                </p>
+              </div>
+
+              {isClosed ? (
+                <div style={{ padding: "16px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2", textAlign: "center" }}>
+                  <Info size={18} color="#94a3b8" style={{ marginBottom: "6px" }} />
+                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#64748b" }}>Funding Closed</p>
+                </div>
+              ) : (
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onFund)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <FormField control={form.control} name="amount" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Investment Amount</FormLabel>
+                        <FormControl>
+                          <div style={{ position: "relative" }}>
+                            <Input type="number" className="tb-input" style={{ height: "48px", fontSize: "18px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", paddingRight: "60px" }} {...field} />
+                            <span style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", fontSize: "11px", fontWeight: 700, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>USDT</span>
+                          </div>
+                        </FormControl>
+                        <p style={{ margin: "3px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>Min: {shipment.minInvestment.toLocaleString()} USDT</p>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+
+                    {watchAmount > 0 && (
+                      <div style={{ padding: "12px", borderRadius: "12px", background: "#ecfdf5", border: "1px solid #a7f3d0", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {[
+                          { label: "Principal", value: `${watchAmount.toLocaleString()} USDT` },
+                          { label: `Profit (+${shipment.profitPercent}%)`, value: `+${estProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT`, green: true },
+                        ].map((r, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>{r.label}</span>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: (r as any).green ? "#059669" : "#0f172a", fontFamily: "'JetBrains Mono', monospace" }}>{r.value}</span>
+                          </div>
+                        ))}
+                        <div style={{ height: "1px", background: "#bbf7d0" }} />
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 700, color: "#059669" }}>Total Return</span>
+                          <span style={{ fontSize: "12px", fontWeight: 800, color: "#059669", fontFamily: "'JetBrains Mono', monospace" }}>{estReturn.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={fundMutation.isPending} style={{
+                      height: "48px", borderRadius: "14px", background: "#2563eb", color: "white",
+                      border: "none", fontSize: "15px", fontWeight: 700, cursor: "pointer",
+                      fontFamily: "'Space Grotesk', sans-serif",
+                      boxShadow: "0 4px 16px rgba(37,99,235,0.35)",
+                      opacity: fundMutation.isPending ? 0.7 : 1,
+                    }}>
+                      {fundMutation.isPending ? "Processing..." : "Commit Funds →"}
+                    </button>
+
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                      <ShieldCheck size={13} color="#94a3b8" style={{ flexShrink: 0, marginTop: "1px" }} />
+                      <p style={{ margin: 0, fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
+                        All shipments are insured for transit risk. ETA dates are maritime estimates.
+                      </p>
+                    </div>
+                  </form>
+                </Form>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      <style>{`
+        @media (min-width: 640px) {
+          .detail-grid { grid-template-columns: 1fr 1fr !important; }
+          .detail-grid > :first-child { grid-column: 1 / -1; }
+        }
+      `}</style>
     </div>
   );
 }

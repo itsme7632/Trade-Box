@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useGetGuildStats, useGetGuildReferrals, useGetGuildCommissions } from "@workspace/api-client-react";
-import { Copy, Users, TrendingUp, Award, Check, ArrowUpRight, Network, Share2, ChevronRight } from "lucide-react";
+import { Copy, Users, TrendingUp, Award, Check, ArrowUpRight, Network, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Progress } from "@/components/ui/progress";
 import { format, parseISO } from "date-fns";
 
 const ranks = [
-  { name: "Merchant", threshold: 0, color: "#64748B" },
-  { name: "Trader", threshold: 10000, color: "#3B82F6" },
-  { name: "Broker", threshold: 50000, color: "#8B5CF6" },
-  { name: "Magnate", threshold: 100000, color: "#F59E0B" },
+  { name: "Merchant", threshold: 0, color: "#94a3b8" },
+  { name: "Trader", threshold: 10000, color: "#2563eb" },
+  { name: "Broker", threshold: 50000, color: "#7c3aed" },
+  { name: "Magnate", threshold: 100000, color: "#d97706" },
 ];
 
 type Tab = "network" | "commissions";
+
+function S({ h = 60 }: { h?: number }) {
+  return <div className="shimmer" style={{ height: h, borderRadius: 12 }} />;
+}
 
 export default function Guild() {
   const { data: stats, isLoading: isStatsLoading } = useGetGuildStats();
@@ -27,291 +30,221 @@ export default function Guild() {
       navigator.clipboard.writeText(stats.guildCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      toast({ title: "Guild Code Copied", description: "Share to earn commissions." });
+      toast({ title: "Guild Code Copied" });
     }
   };
 
   const currentRankIndex = ranks.findIndex(r => r.name === stats?.rank);
-  const currentRank = ranks[currentRankIndex >= 0 ? currentRankIndex : 0];
+  const currentRank = ranks[Math.max(0, currentRankIndex)];
   const nextRank = ranks[currentRankIndex + 1];
   const progressToNext = nextRank && stats
-    ? Math.min(100, (stats.totalVolumeFunded / nextRank.threshold) * 100)
-    : 100;
+    ? Math.min(100, (stats.totalVolumeFunded / nextRank.threshold) * 100) : 100;
 
-  const tierConfig = [
-    { tier: 1, rate: 7, color: "#F59E0B", count: stats?.tier1Count, earnings: stats?.tier1Earnings, label: "Direct referrals" },
-    { tier: 2, rate: 2, color: "#3B82F6", count: stats?.tier2Count, earnings: stats?.tier2Earnings, label: "2nd-level network" },
-    { tier: 3, rate: 1, color: "#8B5CF6", count: stats?.tier3Count, earnings: stats?.tier3Earnings, label: "3rd-level network" },
+  const tiers = [
+    { tier: 1, rate: 7, color: "#d97706", bg: "#fffbeb", border: "#fde68a", count: stats?.tier1Count, earnings: stats?.tier1Earnings, desc: "Direct referrals" },
+    { tier: 2, rate: 2, color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", count: stats?.tier2Count, earnings: stats?.tier2Earnings, desc: "2nd-level network" },
+    { tier: 3, rate: 1, color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", count: stats?.tier3Count, earnings: stats?.tier3Earnings, desc: "3rd-level network" },
   ];
 
   return (
-    <div className="min-h-screen bg-[#050D1B]">
+    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
       {/* Header */}
-      <div className="px-4 pt-6 pb-4 md:px-8 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(245,158,11,0.08) 0%, transparent 60%)" }} />
-        <div className="relative z-10">
-          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-            Trade Guild
-          </h1>
-          <p className="text-[#475569] text-xs font-mono uppercase tracking-widest">Referral network & commissions</p>
-        </div>
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "20px 16px 16px" }}>
+        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Trade Guild</h1>
+        <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Referral network & commissions</p>
       </div>
 
-      <div className="px-4 md:px-8 pb-8 space-y-5">
+      <div style={{ padding: "16px", maxWidth: "680px", margin: "0 auto" }}>
 
-        {/* Guild Identity Card */}
-        <div className="rounded-2xl overflow-hidden relative"
-          style={{
-            background: "linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(10,22,40,0.95) 50%)",
-            border: "1px solid rgba(245,158,11,0.2)"
-          }}>
-          <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-10">
-            <Award className="w-full h-full text-[#F59E0B]" />
+        {/* Guild Code Card */}
+        <div style={{
+          background: "linear-gradient(135deg, #1e40af, #2563eb)",
+          borderRadius: "18px", padding: "20px", marginBottom: "12px",
+          boxShadow: "0 4px 20px rgba(37,99,235,0.25)", position: "relative", overflow: "hidden",
+        }}>
+          <div style={{ position: "absolute", top: "-30px", right: "-30px", width: "120px", height: "120px", borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.6)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>
+            Your Guild Code
           </div>
-
-          <div className="p-6 relative z-10">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Code */}
-              <div className="space-y-5">
-                <div>
-                  <div className="text-[10px] font-mono text-[#475569] uppercase tracking-widest mb-2">Your Guild Code</div>
-                  {isStatsLoading ? (
-                    <div className="h-14 w-52 shimmer rounded-xl" />
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="px-6 py-3 rounded-xl font-mono text-2xl font-bold text-white tracking-widest"
-                        style={{
-                          background: "rgba(5,13,27,0.7)",
-                          border: "1px solid rgba(245,158,11,0.25)",
-                          letterSpacing: "0.15em"
-                        }}>
-                        {stats?.guildCode}
-                      </div>
-                      <button onClick={copyCode}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
-                        style={{
-                          background: copied ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.1)",
-                          border: `1px solid ${copied ? "rgba(16,185,129,0.25)" : "rgba(245,158,11,0.2)"}`,
-                        }}>
-                        {copied ? <Check className="h-4 w-4 text-[#10B981]" /> : <Copy className="h-4 w-4 text-[#F59E0B]" />}
-                      </button>
-                      <button onClick={copyCode}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
-                        style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)" }}>
-                        <Share2 className="h-4 w-4 text-[#3B82F6]" />
-                      </button>
-                    </div>
-                  )}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+            {isStatsLoading
+              ? <div style={{ height: "48px", width: "160px", borderRadius: "10px", background: "rgba(255,255,255,0.15)" }} />
+              : (
+                <div style={{ fontSize: "28px", fontWeight: 800, color: "white", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", padding: "10px 16px", borderRadius: "12px", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  {stats?.guildCode}
                 </div>
-
-                <div>
-                  <div className="text-[10px] font-mono text-[#475569] uppercase tracking-widest mb-1">Total Network Earnings</div>
-                  {isStatsLoading ? <div className="h-10 w-40 shimmer rounded-lg" /> : (
-                    <div className="text-3xl font-bold text-[#10B981]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                      +{stats?.totalEarnings.toLocaleString()} <span className="text-lg opacity-70">USDT</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Rank progress */}
-              <div className="rounded-xl p-5"
-                style={{ background: "rgba(5,13,27,0.6)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-mono text-[#475569] uppercase tracking-widest">Current Rank</span>
-                  <div className="flex items-center gap-2">
-                    <Award className="h-4 w-4" style={{ color: currentRank?.color || "#F59E0B" }} />
-                    <span className="font-bold text-sm uppercase tracking-wider" style={{ color: currentRank?.color || "#F59E0B" }}>
-                      {stats?.rank || "Merchant"}
-                    </span>
+              )}
+            <button onClick={copyCode} style={{ width: "42px", height: "42px", borderRadius: "12px", background: copied ? "rgba(16,185,129,0.2)" : "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {copied ? <Check size={16} color="#4ade80" /> : <Copy size={16} color="white" />}
+            </button>
+            <button onClick={copyCode} style={{ width: "42px", height: "42px", borderRadius: "12px", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Share2 size={16} color="white" />
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>Total Earnings</div>
+              {isStatsLoading
+                ? <div style={{ height: "32px", width: "120px", borderRadius: "8px", background: "rgba(255,255,255,0.15)" }} />
+                : <div style={{ fontSize: "24px", fontWeight: 800, color: "#4ade80", fontFamily: "'Space Grotesk', sans-serif" }}>
+                    +{stats?.totalEarnings.toLocaleString()} <span style={{ fontSize: "13px", opacity: 0.7 }}>USDT</span>
                   </div>
-                </div>
-
-                {/* Rank steps */}
-                <div className="flex items-center gap-1 mb-4">
-                  {ranks.map((r, i) => {
-                    const isCurrent = r.name === stats?.rank;
-                    const isPast = currentRankIndex >= i;
-                    return (
-                      <div key={r.name} className="flex items-center flex-1">
-                        <div className="flex flex-col items-center gap-0.5 flex-1">
-                          <div className={`w-2.5 h-2.5 rounded-full transition-all ${isCurrent ? "scale-125" : ""}`}
-                            style={{
-                              background: isPast ? r.color : "rgba(255,255,255,0.1)",
-                              boxShadow: isCurrent ? `0 0 8px ${r.color}` : "none"
-                            }} />
-                          <span className="text-[8px] font-mono" style={{ color: isPast ? r.color : "#334155" }}>
-                            {r.name}
-                          </span>
-                        </div>
-                        {i < ranks.length - 1 && (
-                          <div className="h-px flex-1 mx-0.5"
-                            style={{ background: currentRankIndex > i ? `${r.color}60` : "rgba(255,255,255,0.05)" }} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {nextRank && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-mono text-[#475569]">
-                      <span>Volume: {stats?.totalVolumeFunded.toLocaleString()} USDT</span>
-                      <span>Next: {nextRank.threshold.toLocaleString()}</span>
-                    </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                      <div className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${progressToNext}%`,
-                          background: `linear-gradient(90deg, ${currentRank?.color || "#F59E0B"}, ${nextRank.color})`,
-                          boxShadow: `0 0 6px ${currentRank?.color || "#F59E0B"}60`
-                        }} />
-                    </div>
-                    <p className="text-[10px] text-[#475569] font-mono">
-                      Need {(nextRank.threshold - (stats?.totalVolumeFunded || 0)).toLocaleString()} more USDT to reach <span style={{ color: nextRank.color }}>{nextRank.name}</span>
-                    </p>
-                  </div>
-                )}
-                {!nextRank && (
-                  <p className="text-xs text-[#10B981] font-mono mt-2">🏆 Maximum rank achieved.</p>
-                )}
+              }
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Rank</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                <Award size={16} color="#fcd34d" />
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "#fcd34d", fontFamily: "'Space Grotesk', sans-serif" }}>{stats?.rank || "Merchant"}</span>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Rank progress */}
+        {nextRank && (
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", padding: "16px", marginBottom: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#0f172a" }}>Rank Progress</span>
+              <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                {stats?.totalVolumeFunded.toLocaleString()} / {nextRank.threshold.toLocaleString()} USDT
+              </span>
+            </div>
+            {/* Rank steps */}
+            <div style={{ display: "flex", alignItems: "center", gap: "2px", marginBottom: "8px" }}>
+              {ranks.map((r, i) => {
+                const isPast = currentRankIndex >= i;
+                const isCurrent = r.name === stats?.rank;
+                return (
+                  <div key={r.name} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px", flex: i < ranks.length - 1 ? "none" : 1 }}>
+                      <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: isPast ? r.color : "#e2e8f0", boxShadow: isCurrent ? `0 0 6px ${r.color}` : "none", transform: isCurrent ? "scale(1.3)" : "scale(1)", transition: "all 0.2s" }} />
+                      <span style={{ fontSize: "8px", color: isPast ? r.color : "#94a3b8", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>{r.name}</span>
+                    </div>
+                    {i < ranks.length - 1 && (
+                      <div style={{ flex: 1, height: "2px", background: currentRankIndex > i ? currentRank.color : "#e2e8f0", margin: "0 3px", marginBottom: "14px" }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ height: "6px", borderRadius: "999px", background: "#f1f5f9", overflow: "hidden" }}>
+              <div style={{ width: `${progressToNext}%`, height: "100%", borderRadius: "999px", background: currentRank.color, transition: "width 0.5s ease" }} />
+            </div>
+            <p style={{ margin: "6px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+              {(nextRank.threshold - (stats?.totalVolumeFunded || 0)).toLocaleString()} USDT more to reach <b style={{ color: nextRank.color }}>{nextRank.name}</b>
+            </p>
+          </div>
+        )}
+
         {/* Tier stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {tierConfig.map(t => (
-            <div key={t.tier} className="rounded-2xl p-5 card-hover"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-wider text-[#475569]">Tier {t.tier}</span>
-                  <div className="text-[10px] text-[#334155] font-mono mt-0.5">{t.label}</div>
-                </div>
-                <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold"
-                  style={{ background: `${t.color}15`, color: t.color, border: `1px solid ${t.color}25` }}>
-                  {t.rate}% commission
-                </span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "16px" }}>
+          {tiers.map(t => (
+            <div key={t.tier} style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "14px", padding: "14px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "3px", padding: "2px 7px", borderRadius: "20px", background: t.bg, border: `1px solid ${t.border}`, marginBottom: "8px" }}>
+                <span style={{ fontSize: "9px", fontWeight: 700, color: t.color, fontFamily: "'JetBrains Mono', monospace" }}>T{t.tier} · {t.rate}%</span>
               </div>
-              <div className="flex justify-between items-end">
-                <div>
-                  <div className="text-[10px] text-[#334155] font-mono uppercase mb-1">Members</div>
-                  <div className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif", color: t.color }}>
-                    {t.count || 0}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-[#334155] font-mono uppercase mb-1">Generated</div>
-                  <div className="text-base font-bold text-[#10B981] font-mono">
-                    +{(t.earnings || 0).toLocaleString()} <span className="text-xs opacity-70">USDT</span>
-                  </div>
-                </div>
-              </div>
+              <div style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", marginBottom: "2px" }}>Members</div>
+              <div style={{ fontSize: "20px", fontWeight: 700, color: t.color, fontFamily: "'Space Grotesk', sans-serif" }}>{t.count || 0}</div>
+              <div style={{ fontSize: "10px", color: "#059669", fontFamily: "'JetBrains Mono', monospace", marginTop: "2px" }}>+{(t.earnings || 0).toLocaleString()} USDT</div>
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 rounded-2xl"
-          style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", gap: "4px", padding: "3px", background: "#f1f5f9", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "12px" }}>
           {[
             { id: "network" as Tab, label: "Network", icon: Users },
             { id: "commissions" as Tab, label: "Commissions", icon: TrendingUp },
           ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-mono uppercase tracking-wider transition-all duration-200"
-              style={activeTab === tab.id ? {
-                background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                color: "white",
-                boxShadow: "0 2px 12px rgba(37,99,235,0.4)"
-              } : { color: "#475569" }}>
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+              padding: "8px", borderRadius: "9px", border: "none", cursor: "pointer",
+              fontSize: "12px", fontWeight: activeTab === tab.id ? 600 : 500,
+              background: activeTab === tab.id ? "#ffffff" : "transparent",
+              color: activeTab === tab.id ? "#2563eb" : "#64748b",
+              boxShadow: activeTab === tab.id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+              transition: "all 0.15s ease",
+            }}>
+              <tab.icon size={13} /> {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Network Tab */}
+        {/* Network */}
         {activeTab === "network" && (
-          <div className="rounded-2xl overflow-hidden animate-fade-in-up"
-            style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
             {isReferralsLoading ? (
-              <div className="p-4 space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-14 shimmer rounded-xl" />)}</div>
+              <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>{[...Array(4)].map((_, i) => <S key={i} />)}</div>
             ) : referrals?.length ? (
-              <div className="divide-y" style={{ divideColor: "rgba(255,255,255,0.04)" }}>
-                <div className="grid grid-cols-4 p-4 text-[10px] font-mono text-[#334155] uppercase tracking-wider"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                  <span>Trader</span>
-                  <span>Tier</span>
-                  <span>Joined</span>
-                  <span className="text-right">Volume</span>
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 80px 80px", gap: "8px", padding: "10px 16px", borderBottom: "1px solid #f1f5f9" }}>
+                  {["Trader", "Tier", "Joined", "Volume"].map(h => (
+                    <span key={h} style={{ fontSize: "9px", fontWeight: 600, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: h === "Volume" ? "right" : "left" }}>{h}</span>
+                  ))}
                 </div>
-                {referrals.map(ref => (
-                  <div key={ref.id} className="grid grid-cols-4 p-4 items-center hover:bg-white/1 transition-colors">
-                    <div>
-                      <p className="text-sm font-bold text-[#E2E8F0]">{ref.traderId}</p>
-                      <p className="text-[10px] font-mono text-[#334155] truncate max-w-[100px]">{ref.email}</p>
+                {referrals.map((ref, idx) => {
+                  const tierColors = ["", "#d97706", "#2563eb", "#7c3aed"];
+                  const tierBgs = ["", "#fffbeb", "#eff6ff", "#f5f3ff"];
+                  return (
+                    <div key={ref.id} style={{
+                      display: "grid", gridTemplateColumns: "1fr 60px 80px 80px", gap: "8px",
+                      padding: "11px 16px", alignItems: "center",
+                      borderBottom: idx < referrals.length - 1 ? "1px solid #f8fafc" : "none",
+                    }}>
+                      <div>
+                        <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "#0f172a" }}>{ref.traderId}</p>
+                        <p style={{ margin: 0, fontSize: "10px", color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ref.email}</p>
+                      </div>
+                      <span style={{ padding: "2px 7px", borderRadius: "20px", fontSize: "10px", fontWeight: 600, background: tierBgs[ref.tier] || "#f1f5f9", color: tierColors[ref.tier] || "#64748b", fontFamily: "'JetBrains Mono', monospace", display: "inline-block" }}>
+                        T{ref.tier}
+                      </span>
+                      <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {format(parseISO(ref.joinedAt), "MMM dd")}
+                      </span>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#0f172a", fontFamily: "'JetBrains Mono', monospace", textAlign: "right" }}>
+                        {ref.volumeFunded.toLocaleString()}
+                      </span>
                     </div>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full w-fit"
-                      style={{
-                        background: ["", "rgba(245,158,11,0.1)", "rgba(59,130,246,0.1)", "rgba(139,92,246,0.1)"][ref.tier] || "rgba(59,130,246,0.1)",
-                        color: ["", "#F59E0B", "#3B82F6", "#8B5CF6"][ref.tier] || "#3B82F6"
-                      }}>
-                      T{ref.tier}
-                    </span>
-                    <span className="text-xs font-mono text-[#475569]">
-                      {format(parseISO(ref.joinedAt), "MMM dd, yyyy")}
-                    </span>
-                    <span className="text-sm font-bold font-mono text-[#E2E8F0] text-right">
-                      {ref.volumeFunded.toLocaleString()} <span className="text-[10px] text-[#475569]">USDT</span>
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <div className="p-12 flex flex-col items-center text-center">
-                <Network className="h-10 w-10 text-[#1E3A5F] mb-3" />
-                <p className="text-sm font-bold text-[#475569] mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>No referrals yet</p>
-                <p className="text-xs text-[#334155] font-mono">Share your Guild Code to start earning commissions.</p>
+              <div style={{ padding: "48px 20px", textAlign: "center" }}>
+                <Network size={32} color="#cbd5e1" style={{ marginBottom: "10px" }} />
+                <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: 600, color: "#64748b", fontFamily: "'Space Grotesk', sans-serif" }}>No referrals yet</p>
+                <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>Share your Guild Code to start earning.</p>
               </div>
             )}
           </div>
         )}
 
-        {/* Commissions Tab */}
+        {/* Commissions */}
         {activeTab === "commissions" && (
-          <div className="rounded-2xl overflow-hidden animate-fade-in-up"
-            style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
             {isCommissionsLoading ? (
-              <div className="p-4 space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-14 shimmer rounded-xl" />)}</div>
+              <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>{[...Array(4)].map((_, i) => <S key={i} />)}</div>
             ) : commissions?.length ? (
-              <div className="divide-y" style={{ divideColor: "rgba(255,255,255,0.04)" }}>
-                {commissions.map(comm => (
-                  <div key={comm.id} className="flex items-center gap-4 p-4 hover:bg-white/1 transition-colors">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: "rgba(139,92,246,0.1)" }}>
-                      <ArrowUpRight className="h-4 w-4 text-[#8B5CF6]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#94A3B8] truncate">{comm.description}</p>
-                      <p className="text-[10px] font-mono text-[#334155] mt-0.5">
-                        {format(parseISO(comm.createdAt), "MMM dd, yyyy · HH:mm")}
-                      </p>
-                    </div>
-                    <div className="text-sm font-bold text-[#10B981] font-mono">
-                      +{comm.amount.toLocaleString()} USDT
-                    </div>
+              commissions.map((comm, idx) => (
+                <div key={comm.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px", borderBottom: idx < commissions.length - 1 ? "1px solid #f8fafc" : "none" }}>
+                  <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: "#f5f3ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <ArrowUpRight size={16} color="#7c3aed" />
                   </div>
-                ))}
-              </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: "13px", color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{comm.description}</p>
+                    <p style={{ margin: 0, fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", marginTop: "2px" }}>
+                      {format(parseISO(comm.createdAt), "MMM dd, yyyy · HH:mm")}
+                    </p>
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#059669", fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>
+                    +{comm.amount.toLocaleString()} USDT
+                  </div>
+                </div>
+              ))
             ) : (
-              <div className="p-12 flex flex-col items-center text-center">
-                <TrendingUp className="h-10 w-10 text-[#1E3A5F] mb-3" />
-                <p className="text-sm font-bold text-[#475569] mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>No commissions yet</p>
-                <p className="text-xs text-[#334155] font-mono">Commission earnings appear here as your network invests.</p>
+              <div style={{ padding: "48px 20px", textAlign: "center" }}>
+                <TrendingUp size={32} color="#cbd5e1" style={{ marginBottom: "10px" }} />
+                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#64748b" }}>No commissions yet</p>
               </div>
             )}
           </div>

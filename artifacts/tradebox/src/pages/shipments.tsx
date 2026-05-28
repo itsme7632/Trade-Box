@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useListShipments, type ListShipmentsCategory, type ListShipmentsRiskGrade } from "@workspace/api-client-react";
 import { ShipmentCard } from "@/components/shipment-card";
-import { Input } from "@/components/ui/input";
-import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 
 const categories: { id: ListShipmentsCategory | "all"; label: string; emoji: string }[] = [
-  { id: "all", label: "All Cargo", emoji: "📦" },
+  { id: "all", label: "All", emoji: "📦" },
   { id: "electronics", label: "Electronics", emoji: "⚡" },
   { id: "agricultural", label: "Agricultural", emoji: "🌿" },
   { id: "minerals", label: "Minerals", emoji: "⛏️" },
@@ -13,12 +12,12 @@ const categories: { id: ListShipmentsCategory | "all"; label: string; emoji: str
   { id: "pharmaceuticals", label: "Pharma", emoji: "💊" },
 ];
 
-const riskGrades: { id: ListShipmentsRiskGrade | "all"; label: string; color: string }[] = [
-  { id: "all", label: "All Grades", color: "#475569" },
-  { id: "A", label: "Grade A", color: "#10B981" },
-  { id: "B", label: "Grade B", color: "#3B82F6" },
-  { id: "C", label: "Grade C", color: "#F59E0B" },
-  { id: "D", label: "Grade D", color: "#EF4444" },
+const riskGrades: { id: ListShipmentsRiskGrade | "all"; label: string; color: string; bg: string }[] = [
+  { id: "all", label: "All Grades", color: "#64748b", bg: "#f1f5f9" },
+  { id: "A", label: "Grade A", color: "#059669", bg: "#ecfdf5" },
+  { id: "B", label: "Grade B", color: "#2563eb", bg: "#eff6ff" },
+  { id: "C", label: "Grade C", color: "#d97706", bg: "#fffbeb" },
+  { id: "D", label: "Grade D", color: "#dc2626", bg: "#fef2f2" },
 ];
 
 export default function Shipments() {
@@ -45,92 +44,91 @@ export default function Shipments() {
   const clearFilters = () => { setCategory("all"); setRiskGrade("all"); setSearch(""); };
 
   return (
-    <div className="min-h-screen bg-[#050D1B]">
-      {/* Header */}
-      <div className="sticky top-14 md:top-0 z-20 px-4 pt-5 pb-4 md:px-8"
-        style={{ background: "rgba(5,13,27,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-        <div className="flex items-start justify-between gap-4 mb-4">
+    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
+      {/* Sticky header */}
+      <div style={{
+        position: "sticky", top: "56px", zIndex: 20,
+        background: "#ffffff", borderBottom: "1px solid #e8edf2",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+        padding: "14px 16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <div>
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-              Cargo Market
-            </h1>
-            <p className="text-[#475569] text-xs font-mono mt-0.5 uppercase tracking-widest">
-              {isLoading ? "Loading..." : `${filtered?.length || 0} shipments available`}
+            <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Cargo Market</h1>
+            <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+              {isLoading ? "Loading..." : `${filtered?.length || 0} available`}
             </p>
           </div>
-          <button onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-mono uppercase tracking-wider transition-all shrink-0"
-            style={showFilters ? {
-              background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-              color: "white",
-              boxShadow: "0 2px 10px rgba(37,99,235,0.35)"
-            } : {
-              background: "rgba(10,22,40,0.9)",
-              color: "#475569",
-              border: "1px solid rgba(255,255,255,0.06)"
-            }}>
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
+          <button onClick={() => setShowFilters(!showFilters)} style={{
+            display: "flex", alignItems: "center", gap: "5px",
+            padding: "7px 12px", borderRadius: "10px", border: "none", cursor: "pointer",
+            fontSize: "12px", fontWeight: 600,
+            background: showFilters ? "#2563eb" : "#f1f5f9",
+            color: showFilters ? "white" : "#475569",
+            transition: "all 0.15s ease",
+          }}>
+            <SlidersHorizontal size={13} /> Filters
           </button>
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#334155]" />
+        <div style={{ position: "relative" }}>
+          <Search size={14} color="#94a3b8" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
           <input
             placeholder="Search ports, vessels, cargo..."
-            className="w-full h-11 pl-10 pr-4 rounded-xl text-sm font-mono text-[#E2E8F0] placeholder-[#334155] outline-none transition-all"
             style={{
-              background: "rgba(10,22,40,0.9)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              width: "100%", height: "42px", paddingLeft: "36px", paddingRight: search ? "36px" : "12px",
+              borderRadius: "12px", border: "1.5px solid #e2e8f0", background: "#f8fafc",
+              fontSize: "13px", color: "#0f172a", outline: "none", fontFamily: "'Inter', sans-serif",
+              transition: "border-color 0.15s",
             }}
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={e => (e.target.style.borderColor = "#2563eb")}
+            onBlur={e => (e.target.style.borderColor = "#e2e8f0")}
           />
           {search && (
-            <button onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ background: "rgba(255,255,255,0.1)" }}>
-              <X className="h-3 w-3 text-[#64748B]" />
+            <button onClick={() => setSearch("")} style={{
+              position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
+              background: "#e2e8f0", border: "none", borderRadius: "50%",
+              width: "18px", height: "18px", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <X size={11} color="#64748b" />
             </button>
           )}
         </div>
 
         {/* Expandable filters */}
         {showFilters && (
-          <div className="mt-3 space-y-3 animate-fade-in-up">
-            {/* Category pills */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {/* Categories */}
+            <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
               {categories.map(cat => (
-                <button key={cat.id} onClick={() => setCategory(cat.id)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-mono whitespace-nowrap transition-all shrink-0"
-                  style={category === cat.id ? {
-                    background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                    color: "white"
-                  } : {
-                    background: "rgba(10,22,40,0.8)",
-                    color: "#475569",
-                    border: "1px solid rgba(255,255,255,0.06)"
-                  }}>
+                <button key={cat.id} onClick={() => setCategory(cat.id)} style={{
+                  display: "flex", alignItems: "center", gap: "4px",
+                  padding: "5px 12px", borderRadius: "20px", border: "1px solid",
+                  cursor: "pointer", fontSize: "11px", fontWeight: 500, whiteSpace: "nowrap",
+                  background: category === cat.id ? "#2563eb" : "#ffffff",
+                  color: category === cat.id ? "white" : "#475569",
+                  borderColor: category === cat.id ? "#2563eb" : "#e2e8f0",
+                  transition: "all 0.15s ease",
+                }}>
                   {cat.emoji} {cat.label}
                 </button>
               ))}
             </div>
-
-            {/* Risk grade pills */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {/* Risk grades */}
+            <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
               {riskGrades.map(grade => (
-                <button key={grade.id} onClick={() => setRiskGrade(grade.id)}
-                  className="px-3 py-1.5 rounded-full text-xs font-mono whitespace-nowrap transition-all shrink-0"
-                  style={riskGrade === grade.id ? {
-                    background: grade.id === "all" ? "linear-gradient(135deg, #2563EB, #1D4ED8)" : `${grade.color}20`,
-                    color: grade.id === "all" ? "white" : grade.color,
-                    border: grade.id !== "all" ? `1px solid ${grade.color}40` : "none"
-                  } : {
-                    background: "rgba(10,22,40,0.8)",
-                    color: "#475569",
-                    border: "1px solid rgba(255,255,255,0.06)"
-                  }}>
+                <button key={grade.id} onClick={() => setRiskGrade(grade.id)} style={{
+                  padding: "5px 12px", borderRadius: "20px", border: "1px solid",
+                  cursor: "pointer", fontSize: "11px", fontWeight: 500, whiteSpace: "nowrap",
+                  background: riskGrade === grade.id ? grade.bg : "#ffffff",
+                  color: riskGrade === grade.id ? grade.color : "#475569",
+                  borderColor: riskGrade === grade.id ? grade.color : "#e2e8f0",
+                  transition: "all 0.15s ease",
+                }}>
                   {grade.label}
                 </button>
               ))}
@@ -138,54 +136,39 @@ export default function Shipments() {
           </div>
         )}
 
-        {/* Active filters notice */}
         {hasFilters && (
-          <div className="mt-2 flex items-center justify-between">
-            <span className="text-[10px] font-mono text-[#475569]">
-              {filtered?.length || 0} results
-            </span>
-            <button onClick={clearFilters}
-              className="flex items-center gap-1 text-[11px] font-mono text-[#3B82F6] hover:text-[#60A5FA] transition-colors">
-              <X className="h-3 w-3" /> Clear filters
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+            <button onClick={clearFilters} style={{
+              display: "flex", alignItems: "center", gap: "4px",
+              fontSize: "11px", color: "#2563eb", fontWeight: 600,
+              background: "none", border: "none", cursor: "pointer",
+            }}>
+              <X size={11} /> Clear filters
             </button>
           </div>
         )}
       </div>
 
       {/* Grid */}
-      <div className="px-4 md:px-8 py-5">
+      <div style={{ padding: "16px" }}>
         {isLoading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="flex flex-col items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full border-2 border-[#1E3A5F] border-t-[#3B82F6] animate-spin" />
-              </div>
-              <span className="text-xs font-mono text-[#334155]">Loading shipments...</span>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="shimmer" style={{ height: "220px", borderRadius: "16px" }} />
+            ))}
           </div>
         ) : filtered && filtered.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
             {filtered.map(s => <ShipmentCard key={s.id} shipment={s} />)}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <Search className="h-7 w-7 text-[#1E3A5F]" />
+          <div style={{ padding: "80px 20px", textAlign: "center" }}>
+            <div style={{ width: "56px", height: "56px", borderRadius: "16px", background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Search size={24} color="#cbd5e1" />
             </div>
-            <h3 className="text-lg font-bold text-[#475569] mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              No Cargo Found
-            </h3>
-            <p className="text-sm text-[#334155] font-mono max-w-xs mb-5">
-              No shipments match your search. Try adjusting filters.
-            </p>
-            <button onClick={clearFilters}
-              className="px-5 py-2.5 rounded-xl font-semibold text-white text-sm"
-              style={{
-                background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                boxShadow: "0 4px 16px rgba(37,99,235,0.3)",
-                fontFamily: "'Space Grotesk', sans-serif"
-              }}>
+            <h3 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 700, color: "#64748b", fontFamily: "'Space Grotesk', sans-serif" }}>No Cargo Found</h3>
+            <p style={{ margin: "0 0 20px", fontSize: "12px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>No shipments match your filters.</p>
+            <button onClick={clearFilters} style={{ padding: "10px 20px", borderRadius: "12px", background: "#2563eb", color: "white", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
               Clear Filters
             </button>
           </div>
