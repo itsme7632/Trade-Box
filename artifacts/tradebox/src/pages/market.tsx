@@ -2,34 +2,66 @@ import { useGetMarketSummary, useGetClosingSoonShipments, useGetDeliveryFeed } f
 import { CommodityTicker } from "@/components/commodity-ticker";
 import { ShipmentCard } from "@/components/shipment-card";
 import { Link } from "wouter";
-import { ArrowRight, Package, TrendingUp, Ship, ArrowUpRight, BarChart2, Zap, Globe } from "lucide-react";
+import {
+  ArrowRight, TrendingUp, Ship, ArrowUpRight,
+  BarChart2, Globe, Package, Zap, ChevronRight
+} from "lucide-react";
 
-function StatCard({ label, value, sub, accent, icon: Icon }: {
-  label: string; value: string; sub?: string; accent?: string; icon: any
+function StatCard({
+  label, value, sub, color, icon: Icon, bg
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  bg: string;
+  icon: any;
 }) {
   return (
-    <div className="rounded-2xl p-5 flex flex-col gap-3 card-hover"
-      style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-mono text-[#475569] uppercase tracking-widest">{label}</span>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: accent ? `${accent}15` : "rgba(59,130,246,0.1)" }}>
-          <Icon className="h-3.5 w-3.5" style={{ color: accent || "#3B82F6" }} />
+    <div
+      style={{
+        background: "#ffffff",
+        border: "1px solid #e8edf2",
+        borderRadius: "16px",
+        padding: "18px",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "10px", fontFamily: "'JetBrains Mono', monospace", color: "#8c9ab0", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          {label}
+        </span>
+        <div style={{ width: "30px", height: "30px", borderRadius: "10px", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={14} color={color} />
         </div>
       </div>
       <div>
-        <div className="text-2xl font-bold text-[#F1F5F9]"
-          style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+        <div style={{ fontSize: "22px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
           {value}
         </div>
-        {sub && <div className="text-xs font-mono mt-1" style={{ color: accent || "#475569" }}>{sub}</div>}
+        {sub && (
+          <div style={{ fontSize: "11px", color: color, fontFamily: "'JetBrains Mono', monospace", marginTop: "2px", fontWeight: 500 }}>
+            {sub}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function SkeletonCard() {
-  return <div className="rounded-2xl h-28 shimmer" />;
+function SkeletonRect({ h = 80, radius = 12 }: { h?: number; radius?: number }) {
+  return (
+    <div style={{
+      height: h,
+      borderRadius: radius,
+      background: "linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%)",
+      backgroundSize: "200% 100%",
+      animation: "shimmer 1.4s infinite",
+    }} />
+  );
 }
 
 export default function Market() {
@@ -38,206 +70,245 @@ export default function Market() {
   const { data: deliveryFeed, isLoading: isFeedLoading } = useGetDeliveryFeed();
 
   return (
-    <div className="min-h-screen bg-[#050D1B]">
+    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
       <CommodityTicker />
 
-      {/* Hero gradient */}
-      <div className="relative overflow-hidden px-4 pt-6 pb-4 md:px-8 md:pt-8">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse at 20% 0%, rgba(37,99,235,0.12) 0%, transparent 60%), radial-gradient(ellipse at 80% 0%, rgba(6,182,212,0.06) 0%, transparent 50%)" }} />
-        <div className="flex items-center justify-between mb-1 relative z-10">
+      {/* Page header */}
+      <div style={{
+        background: "#ffffff",
+        borderBottom: "1px solid #e8edf2",
+        padding: "20px 16px 16px",
+        position: "sticky",
+        top: "56px",
+        zIndex: 10,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
               Market Overview
             </h1>
-            <p className="text-[#475569] text-xs font-mono mt-0.5">Real-time global trade data</p>
+            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Real-time global trade
+            </p>
           </div>
           <Link href="/market/shipments">
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono text-[#3B82F6] transition-colors"
-              style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
-              Browse All <ArrowRight className="h-3 w-3" />
-            </button>
+            <div style={{
+              display: "flex", alignItems: "center", gap: "4px",
+              padding: "8px 14px", borderRadius: "10px",
+              background: "#eff6ff", color: "#2563eb",
+              fontSize: "12px", fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif",
+              cursor: "pointer", border: "1px solid #bfdbfe",
+            }}>
+              Browse <ChevronRight size={14} />
+            </div>
           </Link>
         </div>
       </div>
 
-      <div className="px-4 md:px-8 pb-8 space-y-8">
+      <div style={{ padding: "16px", maxWidth: "900px", margin: "0 auto" }}>
 
         {/* Stats grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px" }}>
           {isSummaryLoading ? (
-            [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
+            <>
+              <SkeletonRect h={90} />
+              <SkeletonRect h={90} />
+              <SkeletonRect h={90} />
+              <SkeletonRect h={90} />
+            </>
           ) : (
             <>
-              <StatCard label="Portfolio Value" value={`${(summary?.portfolioValue || 0).toLocaleString()}`} sub="USDT" icon={BarChart2} />
-              <StatCard label="Active Cargo" value={`${summary?.activeInvestments || 0}`} sub="shipments" icon={Ship} accent="#06B6D4" />
-              <StatCard label="Total Profit" value={`+${(summary?.totalProfit || 0).toLocaleString()}`} sub="USDT earned" icon={TrendingUp} accent="#10B981" />
-              <StatCard label="Total Shipped" value={`${summary?.totalShipped || 0}`} sub="completed" icon={Globe} accent="#8B5CF6" />
+              <StatCard label="Portfolio" value={(summary?.portfolioValue || 0).toLocaleString()} sub="USDT value" color="#2563eb" bg="#eff6ff" icon={BarChart2} />
+              <StatCard label="Active Cargo" value={String(summary?.activeInvestments || 0)} sub="shipments" color="#0891b2" bg="#ecfeff" icon={Ship} />
+              <StatCard label="Total Profit" value={`+${(summary?.totalProfit || 0).toLocaleString()}`} sub="USDT earned" color="#059669" bg="#ecfdf5" icon={TrendingUp} />
+              <StatCard label="Shipped" value={String(summary?.totalShipped || 0)} sub="completed" color="#7c3aed" bg="#f5f3ff" icon={Globe} />
             </>
           )}
         </div>
 
         {/* Featured Manifest */}
         {summary?.featuredShipment && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <section style={{ marginBottom: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+              <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Featured Manifest
               </h2>
               <Link href={`/market/shipments/${summary.featuredShipment.id}`}>
-                <span className="text-xs font-mono text-[#3B82F6] flex items-center gap-1 hover:text-[#60A5FA] transition-colors">
-                  Details <ArrowRight className="h-3 w-3" />
+                <span style={{ fontSize: "12px", color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", cursor: "pointer" }}>
+                  Details →
                 </span>
               </Link>
             </div>
-            <div className="rounded-2xl overflow-hidden relative"
-              style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.15) 0%, rgba(10,22,40,0.95) 60%)",
-                border: "1px solid rgba(59,130,246,0.25)"
-              }}>
-              <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none opacity-20"
-                style={{ background: "radial-gradient(circle, rgba(59,130,246,0.4) 0%, transparent 70%)" }} />
-              <div className="absolute inset-0 pointer-events-none"
-                style={{ background: "linear-gradient(135deg, rgba(37,99,235,0.08), transparent 50%)" }} />
 
-              <div className="p-6 md:p-8 relative z-10">
-                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
-                  <div className="flex-1">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-3 text-[10px] font-mono uppercase tracking-widest"
-                      style={{ background: "rgba(37,99,235,0.2)", border: "1px solid rgba(59,130,246,0.3)", color: "#60A5FA" }}>
-                      <Zap className="h-2.5 w-2.5" /> Prime Opportunity
-                    </div>
-                    <h3 className="text-2xl md:text-3xl font-bold text-white mb-3"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-                      {summary.featuredShipment.title}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-[#64748B]">
-                      <span className="flex items-center gap-1.5 font-mono">
-                        <Package className="h-3.5 w-3.5 text-[#3B82F6]" /> {summary.featuredShipment.cargoType}
-                      </span>
-                      <span className="flex items-center gap-1.5 font-mono text-[#10B981]">
-                        <TrendingUp className="h-3.5 w-3.5" /> +{summary.featuredShipment.profitPercent}% return
-                      </span>
-                    </div>
+            <Link href={`/market/shipments/${summary.featuredShipment.id}`}>
+              <div style={{
+                background: "#ffffff",
+                border: "1px solid #e8edf2",
+                borderRadius: "16px",
+                overflow: "hidden",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                cursor: "pointer",
+              }}>
+                {/* Blue accent top strip */}
+                <div style={{ height: "4px", background: "linear-gradient(90deg, #2563eb, #0891b2)" }} />
+                <div style={{ padding: "18px" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "4px 10px", borderRadius: "20px", background: "#eff6ff", marginBottom: "10px" }}>
+                    <Zap size={10} color="#2563eb" />
+                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Prime Opportunity
+                    </span>
+                  </div>
+                  <h3 style={{ margin: "0 0 8px", fontSize: "18px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em", lineHeight: 1.3 }}>
+                    {summary.featuredShipment.title}
+                  </h3>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "14px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>
+                      <Package size={13} color="#94a3b8" /> {summary.featuredShipment.cargoType}
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "#059669", fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>
+                      <TrendingUp size={13} /> +{summary.featuredShipment.profitPercent}% return
+                    </span>
                   </div>
 
-                  <div className="w-full md:w-72 shrink-0 space-y-3">
-                    <div className="rounded-xl p-4"
-                      style={{ background: "rgba(5,13,27,0.6)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <div className="text-[10px] font-mono text-[#334155] uppercase tracking-widest mb-2">Route · {summary.featuredShipment.transitDays} days</div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-semibold text-[#94A3B8] truncate">{summary.featuredShipment.origin.split(",")[0]}</span>
-                        <div className="flex-1 flex items-center gap-0.5">
-                          <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, #1E3A5F, #3B82F6, #1E3A5F)" }} />
-                          <Ship className="h-3 w-3 text-[#3B82F6] shrink-0" />
-                        </div>
-                        <span className="font-semibold text-[#94A3B8] truncate">{summary.featuredShipment.destination.split(",")[0]}</span>
-                      </div>
+                  {/* Route pill */}
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: "8px",
+                    background: "#f8fafc", border: "1px solid #e8edf2",
+                    borderRadius: "10px", padding: "10px 14px",
+                    marginBottom: "14px",
+                  }}>
+                    <span style={{ fontSize: "13px", color: "#334155", fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {summary.featuredShipment.origin.split(",")[0]}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#94a3b8", flexShrink: 0 }}>
+                      <div style={{ width: "24px", height: "1px", background: "#cbd5e1" }} />
+                      <Ship size={14} color="#2563eb" />
+                      <div style={{ width: "24px", height: "1px", background: "#cbd5e1" }} />
                     </div>
-                    <Link href={`/market/shipments/${summary.featuredShipment.id}`} className="block">
-                      <button className="w-full h-11 rounded-xl font-semibold text-white text-sm transition-all duration-200"
-                        style={{
-                          background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
-                          boxShadow: "0 4px 20px rgba(37,99,235,0.4)",
-                          fontFamily: "'Space Grotesk', sans-serif"
-                        }}>
-                        Fund Shipment →
-                      </button>
-                    </Link>
+                    <span style={{ fontSize: "13px", color: "#334155", fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
+                      {summary.featuredShipment.destination.split(",")[0]}
+                    </span>
+                  </div>
+
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    height: "44px", borderRadius: "12px",
+                    background: "#2563eb", color: "white",
+                    fontSize: "14px", fontWeight: 600,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    boxShadow: "0 4px 12px rgba(37,99,235,0.35)",
+                  }}>
+                    Fund This Shipment →
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           </section>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Closing Soon */}
-          <section className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-[#E2E8F0]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                Closing Soon
-              </h2>
-              <Link href="/market/shipments">
-                <span className="text-xs font-mono text-[#3B82F6] flex items-center gap-1 hover:text-[#60A5FA] transition-colors">
-                  View All <ArrowRight className="h-3 w-3" />
-                </span>
-              </Link>
-            </div>
-            {isClosingLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-56 shimmer rounded-2xl" />
-                ))}
-              </div>
-            ) : closingSoon?.length ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {closingSoon.slice(0, 4).map(s => <ShipmentCard key={s.id} shipment={s} />)}
-              </div>
-            ) : (
-              <div className="rounded-2xl p-10 text-center"
-                style={{ background: "rgba(10,22,40,0.5)", border: "1px dashed rgba(255,255,255,0.06)" }}>
-                <Ship className="h-10 w-10 text-[#1E3A5F] mx-auto mb-3" />
-                <p className="text-[#334155] font-mono text-sm">No shipments closing soon.</p>
-              </div>
-            )}
-          </section>
+        {/* Closing Soon */}
+        <section style={{ marginBottom: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>
+              Closing Soon
+            </h2>
+            <Link href="/market/shipments">
+              <span style={{ fontSize: "12px", color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", cursor: "pointer" }}>
+                View All →
+              </span>
+            </Link>
+          </div>
 
-          {/* Delivery Feed */}
-          <section>
-            <h2 className="text-base font-bold text-[#E2E8F0] mb-3" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          {isClosingLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <SkeletonRect h={180} />
+              <SkeletonRect h={180} />
+            </div>
+          ) : closingSoon?.length ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+              {closingSoon.slice(0, 4).map(s => <ShipmentCard key={s.id} shipment={s} />)}
+            </div>
+          ) : (
+            <div style={{
+              background: "#ffffff", border: "1px dashed #e2e8f0",
+              borderRadius: "16px", padding: "40px 20px", textAlign: "center",
+            }}>
+              <Ship size={32} color="#cbd5e1" style={{ marginBottom: "10px" }} />
+              <p style={{ margin: 0, color: "#94a3b8", fontSize: "13px", fontFamily: "'JetBrains Mono', monospace" }}>
+                No shipments closing soon.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* Live Deliveries */}
+        <section>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>
               Live Deliveries
             </h2>
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: "rgba(10,22,40,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="p-3.5 flex items-center justify-between"
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                <span className="text-[10px] font-mono text-[#334155] uppercase tracking-widest">Recent Cargo Landed</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-                  <span className="text-[10px] font-mono text-[#10B981]">Live</span>
-                </div>
-              </div>
-              <div className="divide-y overflow-y-auto max-h-[420px]" style={{ divideColor: "rgba(255,255,255,0.04)" }}>
-                {isFeedLoading ? (
-                  [...Array(5)].map((_, i) => (
-                    <div key={i} className="p-4 flex gap-3">
-                      <div className="w-9 h-9 rounded-full shimmer shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3 w-3/4 shimmer rounded" />
-                        <div className="h-2.5 w-1/2 shimmer rounded" />
-                      </div>
-                    </div>
-                  ))
-                ) : deliveryFeed?.length ? (
-                  deliveryFeed.map(event => (
-                    <div key={event.id} className="p-4 flex items-start gap-3 hover:bg-white/1 transition-colors">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.15)" }}>
-                        <Ship className="h-4 w-4 text-[#10B981]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#CBD5E1] truncate">{event.shipmentTitle}</p>
-                        <p className="text-xs font-mono text-[#334155] mt-0.5">{event.traderId}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="flex items-center gap-0.5 text-[#10B981] text-sm font-bold font-mono justify-end">
-                          <ArrowUpRight className="h-3 w-3" />
-                          {event.profit.toLocaleString()}
-                        </div>
-                        <div className="text-[10px] text-[#334155] font-mono">USDT profit</div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-8 text-center">
-                    <p className="text-[#334155] font-mono text-sm">No recent deliveries.</p>
-                  </div>
-                )}
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", animation: "pulse 2s infinite" }} />
+              <span style={{ fontSize: "10px", color: "#10b981", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>LIVE</span>
             </div>
-          </section>
-        </div>
+          </div>
+
+          <div style={{
+            background: "#ffffff",
+            border: "1px solid #e8edf2",
+            borderRadius: "16px",
+            overflow: "hidden",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          }}>
+            {isFeedLoading ? (
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                {[...Array(4)].map((_, i) => <SkeletonRect key={i} h={60} />)}
+              </div>
+            ) : deliveryFeed?.length ? (
+              <div>
+                {deliveryFeed.map((event, idx) => (
+                  <div key={event.id} style={{
+                    display: "flex", alignItems: "center", gap: "12px",
+                    padding: "14px 16px",
+                    borderBottom: idx < deliveryFeed.length - 1 ? "1px solid #f1f5f9" : "none",
+                  }}>
+                    <div style={{
+                      width: "36px", height: "36px", borderRadius: "10px",
+                      background: "#ecfdf5", display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0,
+                    }}>
+                      <Ship size={16} color="#059669" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {event.shipmentTitle}
+                      </p>
+                      <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {event.traderId}
+                      </p>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "2px", color: "#059669", fontWeight: 700, fontSize: "13px", fontFamily: "'JetBrains Mono', monospace", justifyContent: "flex-end" }}>
+                        <ArrowUpRight size={13} />
+                        {event.profit.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                        USDT profit
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: "40px 20px", textAlign: "center" }}>
+                <p style={{ margin: 0, color: "#94a3b8", fontSize: "13px", fontFamily: "'JetBrains Mono', monospace" }}>
+                  No recent deliveries.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
       </div>
     </div>
   );
