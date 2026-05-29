@@ -11,6 +11,7 @@ import Wallet from "@/pages/wallet";
 import Tracker from "@/pages/tracker";
 import Guild from "@/pages/guild";
 import ProfilePage from "@/pages/profile";
+import HelpPage from "@/pages/help";
 import AdminDashboard from "@/pages/admin";
 import { Loader2 } from "lucide-react";
 import { memo, type ComponentType } from "react";
@@ -82,6 +83,9 @@ const RouteProfile = memo(function RouteProfile() {
 const RouteAdmin = memo(function RouteAdmin() {
   return <ProtectedLayout component={AdminDashboard} adminOnly />;
 });
+const RouteHelp = memo(function RouteHelp() {
+  return <ProtectedLayout component={HelpPage} />;
+});
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -103,6 +107,7 @@ export function AppRouter() {
       <Route path="/wallet" component={RouteWallet} />
       <Route path="/guild" component={RouteGuild} />
       <Route path="/profile" component={RouteProfile} />
+      <Route path="/help" component={RouteHelp} />
       <Route path="/admin" component={RouteAdmin} />
 
       <Route path="/" component={RootRedirect} />
