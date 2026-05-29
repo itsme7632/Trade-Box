@@ -12,6 +12,7 @@ import Tracker from "@/pages/tracker";
 import Guild from "@/pages/guild";
 import ProfilePage from "@/pages/profile";
 import HelpPage from "@/pages/help";
+import TrackerShipmentDetail from "@/pages/tracker-shipment";
 import AdminDashboard from "@/pages/admin";
 import { Loader2 } from "lucide-react";
 import { memo, type ComponentType } from "react";
@@ -86,6 +87,9 @@ const RouteAdmin = memo(function RouteAdmin() {
 const RouteHelp = memo(function RouteHelp() {
   return <ProtectedLayout component={HelpPage} />;
 });
+const RouteTrackerShipment = memo(function RouteTrackerShipment() {
+  return <ProtectedLayout component={TrackerShipmentDetail} />;
+});
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -102,6 +106,7 @@ export function AppRouter() {
       <Route path="/market/shipments/:id" component={RouteShipmentDetail} />
       <Route path="/market/shipments" component={RouteShipments} />
       <Route path="/market" component={RouteMarket} />
+      <Route path="/tracker/shipment/:id" component={RouteTrackerShipment} />
       <Route path="/tracker" component={RouteTracker} />
       <Route path="/cargo" component={RouteCargo} />
       <Route path="/wallet" component={RouteWallet} />
