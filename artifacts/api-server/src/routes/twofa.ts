@@ -104,10 +104,17 @@ router.post("/disable", requireAuth, async (req, res) => {
     } catch {}
   }
 
+  let usedRecoveryCode = false;
   if (!valid && user.twoFactorRecoveryCodes) {
     try {
       const codes: string[] = JSON.parse(decrypt(user.twoFactorRecoveryCodes));
-      valid = codes.some(c => c.toUpperCase() === String(token).toUpperCase().trim());
+      const input = String(token).toUpperCase().trim();
+      const idx = codes.findIndex(c => c.toUpperCase() === input);
+      if (idx !== -1) { valid = true; usedRecoveryCode = true; codes.splice(idx, 1); }
+      if (valid) {
+        const updatedCodes = encrypt(JSON.stringify(codes));
+        await db.update(usersTable).set({ twoFactorRecoveryCodes: updatedCodes }).where(eq(usersTable.id, userId));
+      }
     } catch {}
   }
 
@@ -117,7 +124,7 @@ router.post("/disable", requireAuth, async (req, res) => {
     .set({ twoFactorEnabled: false, twoFactorSecret: null, twoFactorRecoveryCodes: null })
     .where(eq(usersTable.id, userId));
 
-  res.json({ success: true });
+  res.json({ success: true, usedRecoveryCode });
 });
 
 router.post("/complete", async (req, res) => {
@@ -146,7 +153,14 @@ router.post("/complete", async (req, res) => {
   if (!valid && user.twoFactorRecoveryCodes) {
     try {
       const codes: string[] = JSON.parse(decrypt(user.twoFactorRecoveryCodes));
-      valid = codes.some(c => c.toUpperCase() === String(token).toUpperCase().trim());
+      const input = String(token).toUpperCase().trim();
+      const idx = codes.findIndex(c => c.toUpperCase() === input);
+      if (idx !== -1) {
+        valid = true;
+        codes.splice(idx, 1);
+        const updatedCodes = encrypt(JSON.stringify(codes));
+        await db.update(usersTable).set({ twoFactorRecoveryCodes: updatedCodes }).where(eq(usersTable.id, userId));
+      }
     } catch {}
   }
 

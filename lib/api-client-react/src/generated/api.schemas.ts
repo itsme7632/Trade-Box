@@ -12,8 +12,16 @@ export interface HealthStatus {
 export interface RegisterInput {
   email: string;
   password: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  country?: string;
+  telegramHandle?: string;
+  whatsappNumber?: string;
   /** @nullable */
   referralCode?: string | null;
+  agreedToTerms?: boolean;
+  ageConfirmed?: boolean;
 }
 
 export interface LoginInput {
@@ -49,9 +57,100 @@ export interface User {
   createdAt: string;
 }
 
-export interface AuthResponse {
+export interface AuthResponseFull {
   token: string;
   user: User;
+}
+
+export interface AuthResponseOtp {
+  requiresOtp: true;
+  tempToken: string;
+}
+
+export type AuthResponse = AuthResponseFull | AuthResponseOtp;
+
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface TwoFaSetupResponse {
+  secret: string;
+  otpauth: string;
+  qrCode: string;
+}
+
+export interface TwoFaVerifyInput {
+  secret: string;
+  token: string;
+}
+
+export interface TwoFaVerifyResponse {
+  success: boolean;
+  recoveryCodes: string[];
+}
+
+export interface TwoFaDisableInput {
+  token: string;
+}
+
+export interface TwoFaCompleteInput {
+  tempToken: string;
+  token: string;
+}
+
+export interface SupportSettings {
+  /** @nullable */
+  telegramSupport?: string | null;
+  /** @nullable */
+  whatsappSupport?: string | null;
+  /** @nullable */
+  supportEmail?: string | null;
+  /** @nullable */
+  telegramGroup?: string | null;
+  /** @nullable */
+  whatsappCommunity?: string | null;
+  /** @nullable */
+  announcementChannel?: string | null;
+}
+
+export interface TicketReply {
+  id: number;
+  message: string;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
+export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
+
+export const SupportTicketStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  closed: 'closed',
+} as const;
+
+export interface SupportTicket {
+  id: number;
+  subject: string;
+  message: string;
+  status: SupportTicketStatus;
+  createdAt: string;
+  updatedAt: string;
+  replies: TicketReply[];
+}
+
+export interface CreateTicketInput {
+  subject: string;
+  message: string;
+}
+
+export interface CheckAvailabilityInput {
+  field: 'email' | 'username';
+  value: string;
+}
+
+export interface CheckAvailabilityResponse {
+  available: boolean;
 }
 
 export type ShipmentCargoType = typeof ShipmentCargoType[keyof typeof ShipmentCargoType];
@@ -361,11 +460,17 @@ export interface Profile {
 
 export interface ProfileUpdate {
   /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  country?: string | null;
+  /** @nullable */
   telegramHandle?: string | null;
   /** @nullable */
   whatsappNumber?: string | null;
-  /** @nullable */
-  twoFactorEnabled?: boolean | null;
 }
 
 export interface KycInput {
