@@ -155,11 +155,11 @@ const replySchema = z.object({ message: z.string().min(1, "Required") });
 
 type View = "main" | "faq" | "tickets" | "new-ticket" | "ticket-detail";
 
-export default function HelpPage() {
+function HelpPageInner({ initialView = "main" }: { initialView?: View }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [view, setView] = useState<View>("main");
+  const [view, setView] = useState<View>(initialView);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
 

@@ -1728,6 +1728,14 @@ components:
           type: string
         traderId:
           type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
         kycStatus:
           type: string
           enum: [none, pending, approved, rejected]

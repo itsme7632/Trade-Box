@@ -448,6 +448,14 @@ export interface Profile {
   id: number;
   email: string;
   traderId: string;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  country?: string | null;
   kycStatus: ProfileKycStatus;
   /** @nullable */
   telegramHandle: string | null;
