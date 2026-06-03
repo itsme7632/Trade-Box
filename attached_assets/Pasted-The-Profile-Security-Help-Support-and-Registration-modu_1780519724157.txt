@@ -1,0 +1,116 @@
+The Profile, Security, Help & Support, and Registration modules currently feel incomplete and partially functional. Convert them into production-ready features with real backend functionality.
+
+PROFILE PAGE IMPROVEMENTS
+
+Remove:
+- Language section completely
+- Any mock settings that do not save data
+- Unused placeholder content
+
+Keep:
+- Profile photo upload
+- Username
+- Email
+- WhatsApp number
+- Edit profile
+- Password change
+- Notifications
+- Two-Factor Authentication
+- Help & Support
+- Sign Out
+
+Improve profile layout:
+- Reduce excessive empty space
+- Make header more compact
+- Better mobile layout
+- Cleaner card design
+- Better typography and spacing
+
+TWO-FACTOR AUTHENTICATION
+
+Replace the current fake 2FA toggle.
+
+Create a dedicated page:
+
+/security/2fa
+
+Features:
+- Generate unique TOTP secret
+- Generate QR code
+- Manual secret key display
+- Compatible with Google Authenticator
+- Compatible with Microsoft Authenticator
+- Compatible with Authy
+- Verify 6-digit code
+- Enable 2FA
+- Disable 2FA
+- Generate recovery codes
+- Store encrypted secret in database
+- Integrate with login flow
+
+HELP & SUPPORT IMPROVEMENTS
+
+Current support page contains hardcoded demo content.
+
+Create database-driven support settings.
+
+Admin should manage:
+- Telegram support username
+- WhatsApp support number
+- Support email
+- Telegram group link
+- WhatsApp community link
+- Announcement channel link
+
+Create Support Ticket System:
+
+/support/tickets
+
+Users can:
+- Create ticket
+- View ticket status
+- Reply to ticket
+- Upload screenshots
+- See ticket history
+
+Registration Page Improvements
+
+Current registration form is too basic.
+
+Add fields:
+
+PERSONAL INFORMATION
+- First Name
+- Last Name
+- Username
+- Email
+
+CONTACT INFORMATION
+- Country dropdown
+- Country code selector
+- WhatsApp number
+- Telegram username (optional)
+
+SECURITY
+- Password
+- Confirm Password
+
+REFERRAL
+- Referral Code
+
+COMPLIANCE
+- Terms & Conditions checkbox
+- Age confirmation checkbox
+
+Validation:
+- Username uniqueness check
+- Email uniqueness check
+- Phone validation
+- Password strength meter
+
+Improve signup UI:
+- Multi-step registration
+- Better onboarding experience
+- Progress indicator
+- Better mobile UX
+- Modern fintech-style design
