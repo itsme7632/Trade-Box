@@ -75,7 +75,8 @@ export default function SecurityPage() {
   };
 
   const onVerify = (data: z.infer<typeof otpSchema>) => {
-    verifyTwoFa.mutate({ token: data.token }, {
+    if (!qrData) return;
+    verifyTwoFa.mutate({ secret: qrData.secret, token: data.token }, {
       onSuccess: (res: any) => {
         setRecoveryCodes(res.recoveryCodes || []);
         setSection("codes");

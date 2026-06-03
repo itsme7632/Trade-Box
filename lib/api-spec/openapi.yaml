@@ -17,6 +17,7 @@ tags:
   - name: profile
   - name: market
   - name: admin
+  - name: support
 
 paths:
   /healthz:
@@ -89,6 +90,230 @@ paths:
                 $ref: "#/components/schemas/User"
         "401":
           description: Unauthorized
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change authenticated user password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordInput"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Validation error
+
+  /auth/2fa/setup:
+    post:
+      operationId: setup2fa
+      tags: [auth]
+      summary: Start 2FA setup — returns TOTP secret and QR code URI
+      responses:
+        "200":
+          description: Setup data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFaSetupResponse"
+        "401":
+          description: Unauthorized
+
+  /auth/2fa/verify:
+    post:
+      operationId: verify2fa
+      tags: [auth]
+      summary: Verify TOTP code and enable 2FA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFaVerifyInput"
+      responses:
+        "200":
+          description: 2FA enabled with recovery codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFaVerifyResponse"
+        "400":
+          description: Invalid code
+
+  /auth/2fa/disable:
+    post:
+      operationId: disable2fa
+      tags: [auth]
+      summary: Disable 2FA using OTP or recovery code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFaDisableInput"
+      responses:
+        "200":
+          description: 2FA disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Invalid code
+
+  /auth/2fa/complete:
+    post:
+      operationId: complete2fa
+      tags: [auth]
+      summary: Complete login with 2FA code (step 2 after requiresOtp response)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFaCompleteInput"
+      responses:
+        "200":
+          description: Full auth token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid code
+
+  /support/settings:
+    get:
+      operationId: getSupportSettings
+      tags: [support]
+      summary: Get public support contact settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportSettings"
+    patch:
+      operationId: updateSupportSettings
+      tags: [support]
+      summary: Update support contact settings (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportSettings"
+        "403":
+          description: Admin only
+
+  /support/tickets:
+    get:
+      operationId: listSupportTickets
+      tags: [support]
+      summary: List support tickets (own tickets or all if admin)
+      responses:
+        "200":
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicket"
+    post:
+      operationId: createSupportTicket
+      tags: [support]
+      summary: Create a new support ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketInput"
+      responses:
+        "201":
+          description: Created ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+  /support/tickets/{ticketId}:
+    patch:
+      operationId: updateTicketStatus
+      tags: [support]
+      summary: Update ticket status (admin only)
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [open, in_progress, closed]
+      responses:
+        "200":
+          description: Updated ticket
+        "403":
+          description: Admin only
+
+  /support/tickets/{ticketId}/replies:
+    post:
+      operationId: replyToTicket
+      tags: [support]
+      summary: Reply to a support ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        "201":
+          description: Reply created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketReply"
 
   # SHIPMENTS
   /shipments:
@@ -920,6 +1145,139 @@ components:
           type: string
         user:
           $ref: "#/components/schemas/User"
+
+    ChangePasswordInput:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+
+    TwoFaSetupResponse:
+      type: object
+      required: [secret, otpauth, qrCode]
+      properties:
+        secret:
+          type: string
+        otpauth:
+          type: string
+        qrCode:
+          type: string
+
+    TwoFaVerifyInput:
+      type: object
+      required: [secret, token]
+      properties:
+        secret:
+          type: string
+        token:
+          type: string
+
+    TwoFaVerifyResponse:
+      type: object
+      required: [success, recoveryCodes]
+      properties:
+        success:
+          type: boolean
+        recoveryCodes:
+          type: array
+          items:
+            type: string
+
+    TwoFaDisableInput:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    TwoFaCompleteInput:
+      type: object
+      required: [tempToken, token]
+      properties:
+        tempToken:
+          type: string
+        token:
+          type: string
+
+    SupportSettings:
+      type: object
+      properties:
+        telegramSupport:
+          type: ["string", "null"]
+        whatsappSupport:
+          type: ["string", "null"]
+        supportEmail:
+          type: ["string", "null"]
+        telegramGroup:
+          type: ["string", "null"]
+        whatsappCommunity:
+          type: ["string", "null"]
+        announcementChannel:
+          type: ["string", "null"]
+
+    SupportSettingsInput:
+      type: object
+      properties:
+        telegramSupport:
+          type: string
+        whatsappSupport:
+          type: string
+        supportEmail:
+          type: string
+        telegramGroup:
+          type: string
+        whatsappCommunity:
+          type: string
+        announcementChannel:
+          type: string
+
+    TicketReply:
+      type: object
+      required: [id, message, isAdmin, createdAt]
+      properties:
+        id:
+          type: integer
+        message:
+          type: string
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+
+    SupportTicket:
+      type: object
+      required: [id, subject, message, status, createdAt, updatedAt, replies]
+      properties:
+        id:
+          type: integer
+        subject:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, closed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        replies:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketReply"
+
+    CreateTicketInput:
+      type: object
+      required: [subject, message]
+      properties:
+        subject:
+          type: string
+        message:
+          type: string
 
     User:
       type: object

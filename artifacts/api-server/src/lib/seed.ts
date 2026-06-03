@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { db, usersTable, shipmentsTable, cryptoWalletsTable, portActivityTable } from "@workspace/db";
+import { db, usersTable, shipmentsTable, cryptoWalletsTable, portActivityTable, supportSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
@@ -225,6 +225,20 @@ export async function seed() {
         });
       }
       logger.info("Port activity seeded");
+    }
+
+    // Support settings singleton
+    const existingSettings = await db.select().from(supportSettingsTable).limit(1);
+    if (existingSettings.length === 0) {
+      await db.insert(supportSettingsTable).values({
+        telegramSupport: "@tradebox_support",
+        whatsappSupport: "+1 555 000 0001",
+        supportEmail: "support@tradebox.io",
+        telegramGroup: "@tradebox_community",
+        whatsappCommunity: "+1 555 000 0002",
+        announcementChannel: "@tradebox_announcements",
+      });
+      logger.info("Support settings seeded");
     }
 
     logger.info("Database seed complete");

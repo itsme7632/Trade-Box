@@ -42,6 +42,69 @@ export const LoginBody = zod.object({
   "password": zod.string()
 })
 
+export const ChangePasswordBody = zod.object({
+  "currentPassword": zod.string().min(1),
+  "newPassword": zod.string().min(8),
+})
+
+export const TwoFaSetupResponse = zod.object({
+  "secret": zod.string(),
+  "otpauth": zod.string(),
+  "qrCode": zod.string(),
+})
+
+export const TwoFaVerifyBody = zod.object({
+  "secret": zod.string(),
+  "token": zod.string().length(6),
+})
+
+export const TwoFaVerifyResponse = zod.object({
+  "success": zod.boolean(),
+  "recoveryCodes": zod.array(zod.string()),
+})
+
+export const TwoFaDisableBody = zod.object({
+  "token": zod.string().min(6),
+})
+
+export const TwoFaCompleteBody = zod.object({
+  "tempToken": zod.string(),
+  "token": zod.string().length(6),
+})
+
+export const SupportSettings = zod.object({
+  "telegramSupport": zod.string().nullish(),
+  "whatsappSupport": zod.string().nullish(),
+  "supportEmail": zod.string().nullish(),
+  "telegramGroup": zod.string().nullish(),
+  "whatsappCommunity": zod.string().nullish(),
+  "announcementChannel": zod.string().nullish(),
+})
+
+export const SupportSettingsInput = SupportSettings.partial()
+
+export const TicketReply = zod.object({
+  "id": zod.number(),
+  "message": zod.string(),
+  "isAdmin": zod.boolean(),
+  "createdAt": zod.string(),
+})
+
+export const SupportTicket = zod.object({
+  "id": zod.number(),
+  "subject": zod.string(),
+  "message": zod.string(),
+  "status": zod.enum(["open", "in_progress", "closed"]),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "replies": zod.array(TicketReply),
+})
+
+export const CreateTicketBody = zod.object({
+  "subject": zod.string().min(1),
+  "message": zod.string().min(1),
+})
+
 export const LoginResponse = zod.object({
   "token": zod.string(),
   "user": zod.object({
