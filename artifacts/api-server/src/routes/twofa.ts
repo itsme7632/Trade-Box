@@ -57,7 +57,7 @@ router.post("/setup", requireAuth, async (req, res) => {
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   if (user.twoFactorEnabled) { res.status(400).json({ error: "2FA already enabled" }); return; }
 
-  const secret = generateSecret(20);
+  const secret = generateSecret();
   const otpauth = buildOtpAuthURI(user.email, APP_NAME, secret);
   const qrCode = await QRCode.toDataURL(otpauth);
 
@@ -72,7 +72,8 @@ router.post("/verify", requireAuth, async (req, res) => {
     res.status(400).json({ error: "secret and token are required" }); return;
   }
 
-  const valid = await totpVerify({ token: String(token), secret });
+  const verifyResult = await totpVerify({ token: String(token), secret });
+  const valid = verifyResult?.valid === true;
   if (!valid) { res.status(400).json({ error: "Invalid OTP code" }); return; }
 
   const encryptedSecret = encrypt(secret);
@@ -98,7 +99,8 @@ router.post("/disable", requireAuth, async (req, res) => {
   if (user.twoFactorSecret) {
     try {
       const decSecret = decrypt(user.twoFactorSecret);
-      valid = await totpVerify({ token: String(token), secret: decSecret });
+      const verifyResult = await totpVerify({ token: String(token), secret: decSecret });
+      valid = verifyResult?.valid === true;
     } catch {}
   }
 
@@ -137,7 +139,8 @@ router.post("/complete", async (req, res) => {
   if (user.twoFactorSecret) {
     try {
       const decSecret = decrypt(user.twoFactorSecret);
-      valid = await totpVerify({ token: String(token), secret: decSecret });
+      const verifyResult = await totpVerify({ token: String(token), secret: decSecret });
+      valid = verifyResult?.valid === true;
     } catch {}
   }
   if (!valid && user.twoFactorRecoveryCodes) {
