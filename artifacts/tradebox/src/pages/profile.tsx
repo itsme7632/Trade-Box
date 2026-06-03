@@ -1,47 +1,48 @@
 import { useState, useRef } from "react";
 import { useGetProfile, useUpdateProfile } from "@workspace/api-client-react";
+import {
+  useTwoFaSetup, useTwoFaVerify, useTwoFaDisable, useChangePassword
+} from "@workspace/api-client-react/src/extra-hooks";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import QRCode from "react-qr-code";
 import {
   User, Bell, Shield, Key, LogOut, ChevronRight,
   Camera, Globe, Smartphone, HelpCircle, Lock,
   EyeOff, Eye, Star, TrendingUp, Ship, Zap,
-  Check, Settings
+  Check, Settings, MapPin, AtSign, Copy, AlertTriangle,
+  RefreshCw, X
 } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { useLocation } from "wouter";
 
 // ─── schemas ──────────────────────────────────────────────────────────────────
 
 const profileSchema = z.object({
-  displayName:     z.string().min(2, "At least 2 characters").max(32),
-  telegramHandle:  z.string().optional(),
-  whatsappNumber:  z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  username: z.string().regex(/^[a-zA-Z0-9_]*$/, "Only letters, numbers, underscores").optional().or(z.literal("")),
+  country: z.string().optional(),
+  telegramHandle: z.string().optional(),
+  whatsappNumber: z.string().optional(),
 });
 
 const passwordSchema = z.object({
   current: z.string().min(1, "Required"),
-  next:    z.string().min(8, "Min 8 characters"),
+  next: z.string().min(8, "Min 8 characters"),
   confirm: z.string().min(1, "Required"),
 }).refine(d => d.next === d.confirm, { message: "Passwords don't match", path: ["confirm"] });
 
-// ─── small shared components ──────────────────────────────────────────────────
+const otpSchema = z.object({ token: z.string().length(6, "Enter 6 digits") });
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      background: "#ffffff", border: "1px solid #e8edf2",
-      borderRadius: "18px", overflow: "hidden",
-      boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "10px",
-    }}>
-      {children}
-    </div>
-  );
+  return <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "10px" }}>{children}</div>;
 }
 
 function CardHeader({ icon: Icon, title, color }: { icon: any; title: string; color: string }) {
@@ -55,17 +56,13 @@ function CardHeader({ icon: Icon, title, color }: { icon: any; title: string; co
   );
 }
 
-function Row({ icon: Icon, label, value, color = "#94a3b8", onClick, danger }: {
-  icon: any; label: string; value?: string; color?: string; onClick?: () => void; danger?: boolean;
+function Row({ icon: Icon, label, value, color = "#94a3b8", onClick, danger, badge }: {
+  icon: any; label: string; value?: string; color?: string; onClick?: () => void; danger?: boolean; badge?: React.ReactNode;
 }) {
   return (
-    <div onClick={onClick} style={{
-      display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px",
-      cursor: onClick ? "pointer" : "default", transition: "background 0.1s",
-    }}
+    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px", cursor: onClick ? "pointer" : "default", transition: "background 0.1s" }}
       onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-    >
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
       <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: danger ? "#fef2f2" : `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={15} color={danger ? "#ef4444" : color} />
       </div>
@@ -73,67 +70,69 @@ function Row({ icon: Icon, label, value, color = "#94a3b8", onClick, danger }: {
         <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, color: danger ? "#ef4444" : "#0f172a" }}>{label}</p>
         {value && <p style={{ margin: "1px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>}
       </div>
+      {badge}
       {onClick && <ChevronRight size={14} color="#cbd5e1" style={{ flexShrink: 0 }} />}
     </div>
   );
 }
 
-function ToggleRow({ icon: Icon, label, value, color = "#94a3b8", defaultOn = false }: {
-  icon: any; label: string; value?: string; color?: string; defaultOn?: boolean;
-}) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px" }}>
-      <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={15} color={color} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, color: "#0f172a" }}>{label}</p>
-        {value && <p style={{ margin: "1px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{value}</p>}
-      </div>
-      <Switch checked={on} onCheckedChange={setOn} />
-    </div>
-  );
-}
-
-function Div() {
-  return <div style={{ height: "1px", background: "#f1f5f9", margin: "0 16px" }} />;
-}
+function Div() { return <div style={{ height: "1px", background: "#f1f5f9", margin: "0 16px" }} />; }
 
 function BackBtn({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{
-      display: "flex", alignItems: "center", gap: "6px",
-      background: "none", border: "none", cursor: "pointer",
-      fontSize: "13px", fontWeight: 600, color: "#2563eb",
-      padding: 0, marginBottom: "16px",
-    }}>
+    <button onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#2563eb", padding: 0, marginBottom: "16px" }}>
       ← Back
     </button>
   );
 }
 
+function PwField({ label, field, show, toggle }: { label: string; field: any; show: boolean; toggle: () => void }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>{label}</label>
+      <div style={{ position: "relative" }}>
+        <Input type={show ? "text" : "password"} placeholder="••••••••" className="tb-input" style={{ height: "44px", paddingRight: "40px" }} {...field} />
+        <button type="button" onClick={toggle} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          {show ? <EyeOff size={15} color="#94a3b8" /> : <Eye size={15} color="#94a3b8" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-type Section = "overview" | "edit" | "password" | "notifications";
+type Section = "overview" | "edit" | "password" | "2fa-setup" | "2fa-disable" | "2fa-codes";
 
 export default function ProfilePage() {
   const { data: profile, isLoading, refetch } = useGetProfile();
   const updateProfile = useUpdateProfile();
+  const setupTwoFa = useTwoFaSetup();
+  const verifyTwoFa = useTwoFaVerify();
+  const disableTwoFa = useTwoFaDisable();
+  const changePassword = useChangePassword();
   const { logout } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [section, setSection] = useState<Section>("overview");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNext, setShowNext] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+
+  // 2FA state
+  const [qrData, setQrData] = useState<{ secret: string; qrCode: string; otpauth: string } | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Password visibility
+  const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
   const fileRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
     values: {
-      displayName:    (profile as any)?.displayName || profile?.traderId || "",
+      firstName: (profile as any)?.firstName || "",
+      lastName: (profile as any)?.lastName || "",
+      username: (profile as any)?.username || "",
+      country: (profile as any)?.country || "",
       telegramHandle: profile?.telegramHandle || "",
       whatsappNumber: profile?.whatsappNumber || "",
     }
@@ -144,43 +143,101 @@ export default function ProfilePage() {
     defaultValues: { current: "", next: "", confirm: "" },
   });
 
+  const otpForm = useForm<z.infer<typeof otpSchema>>({
+    resolver: zodResolver(otpSchema),
+    defaultValues: { token: "" },
+  });
+
+  const disableOtpForm = useForm<z.infer<typeof otpSchema>>({
+    resolver: zodResolver(otpSchema),
+    defaultValues: { token: "" },
+  });
+
+  // ── handlers ──────────────────────────────────────────────────────────────────
+
   const onSaveProfile = (data: z.infer<typeof profileSchema>) => {
-    updateProfile.mutate({ data }, {
+    updateProfile.mutate({ data: data as any }, {
       onSuccess: () => {
-        toast({ title: "Profile saved", description: "Your changes have been saved." });
+        toast({ title: "Profile saved" });
         refetch();
         setSection("overview");
       },
-      onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
     });
   };
 
   const onChangePassword = (data: z.infer<typeof passwordSchema>) => {
-    toast({ title: "Password updated", description: "Your password has been changed successfully." });
-    passwordForm.reset();
-    setSection("overview");
+    changePassword.mutate({ currentPassword: data.current, newPassword: data.next }, {
+      onSuccess: () => {
+        toast({ title: "Password updated", description: "Your password has been changed." });
+        passwordForm.reset();
+        setSection("overview");
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
+    });
+  };
+
+  const on2FaSetup = () => {
+    setupTwoFa.mutate(undefined, {
+      onSuccess: (data) => {
+        setQrData(data);
+        setSection("2fa-setup");
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
+    });
+  };
+
+  const onVerify2Fa = (data: z.infer<typeof otpSchema>) => {
+    if (!qrData) return;
+    verifyTwoFa.mutate({ secret: qrData.secret, token: data.token }, {
+      onSuccess: (res) => {
+        setRecoveryCodes(res.recoveryCodes);
+        setSection("2fa-codes");
+        refetch();
+        toast({ title: "2FA enabled!", description: "Save your recovery codes." });
+      },
+      onError: (err: any) => toast({ title: "Invalid code", description: err?.data?.error || "Try again", variant: "destructive" }),
+    });
+  };
+
+  const onDisable2Fa = (data: z.infer<typeof otpSchema>) => {
+    disableTwoFa.mutate({ token: data.token }, {
+      onSuccess: () => {
+        toast({ title: "2FA disabled" });
+        disableOtpForm.reset();
+        setSection("overview");
+        refetch();
+      },
+      onError: (err: any) => toast({ title: "Invalid code", description: err?.data?.error || "Try again", variant: "destructive" }),
+    });
+  };
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setAvatarUrl(URL.createObjectURL(file));
-      toast({ title: "Photo updated" });
-    }
+    if (file) { setAvatarUrl(URL.createObjectURL(file)); toast({ title: "Photo updated" }); }
   };
 
-  const handleLogout = () => {
-    logout();
-    setLocation("/login");
-  };
+  const handleLogout = () => { logout(); setLocation("/login"); };
 
-  const initials = profile?.email?.charAt(0).toUpperCase() || "T";
+  const displayName = (profile as any)?.firstName
+    ? `${(profile as any).firstName} ${(profile as any).lastName || ""}`.trim()
+    : profile?.traderId;
+
+  const initials = (profile as any)?.firstName
+    ? (((profile as any).firstName[0] || "") + ((profile as any).lastName?.[0] || "")).toUpperCase()
+    : (profile?.email?.charAt(0).toUpperCase() || "T");
 
   const stats = [
-    { label: "Shipments", value: profile?.traderStats?.totalShipped ?? 0,         color: "#2563eb", icon: Ship      },
-    { label: "Profit",    value: `+${(profile?.traderStats?.totalProfit ?? 0).toLocaleString()}`, color: "#059669", icon: TrendingUp, suffix: " USDT" },
-    { label: "Active",    value: profile?.traderStats?.activeInvestments ?? 0,     color: "#d97706", icon: Zap       },
-    { label: "Countries", value: profile?.traderStats?.countriesTraded ?? 0,       color: "#7c3aed", icon: Globe     },
+    { label: "Shipped",   value: `$${((profile?.traderStats?.totalShipped ?? 0)).toLocaleString()}`,         color: "#2563eb", icon: Ship      },
+    { label: "Profit",    value: `+$${(profile?.traderStats?.totalProfit ?? 0).toLocaleString()}`,           color: "#059669", icon: TrendingUp },
+    { label: "Active",    value: String(profile?.traderStats?.activeInvestments ?? 0),                      color: "#d97706", icon: Zap       },
+    { label: "Countries", value: String(profile?.traderStats?.countriesTraded ?? 0),                        color: "#7c3aed", icon: Globe     },
   ];
 
   if (isLoading) {
@@ -204,23 +261,10 @@ export default function ProfilePage() {
 
             {/* Avatar */}
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <div style={{
-                width: "72px", height: "72px", borderRadius: "20px",
-                background: avatarUrl ? "transparent" : "linear-gradient(135deg, #2563eb, #7c3aed)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "26px", fontWeight: 800, color: "white",
-                overflow: "hidden", boxShadow: "0 4px 16px rgba(37,99,235,0.22)",
-              }}>
-                {avatarUrl
-                  ? <img src={avatarUrl} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : initials}
+              <div style={{ width: "72px", height: "72px", borderRadius: "20px", background: avatarUrl ? "transparent" : "linear-gradient(135deg, #2563eb, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: 800, color: "white", overflow: "hidden", boxShadow: "0 4px 16px rgba(37,99,235,0.22)" }}>
+                {avatarUrl ? <img src={avatarUrl} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initials}
               </div>
-              <button onClick={() => fileRef.current?.click()} style={{
-                position: "absolute", bottom: "-4px", right: "-4px",
-                width: "24px", height: "24px", borderRadius: "50%",
-                background: "#2563eb", border: "2px solid #ffffff",
-                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-              }}>
+              <button onClick={() => fileRef.current?.click()} style={{ position: "absolute", bottom: "-4px", right: "-4px", width: "24px", height: "24px", borderRadius: "50%", background: "#2563eb", border: "2px solid #ffffff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <Camera size={11} color="white" />
               </button>
               <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatar} />
@@ -231,42 +275,34 @@ export default function ProfilePage() {
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "180px" }}>
-                    {(profile as any)?.displayName || profile?.traderId}
+                    {displayName}
                   </h2>
                   <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {profile?.email}
                   </p>
                   <p style={{ margin: "1px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
                     {profile?.traderId}
+                    {(profile as any)?.country && ` · ${(profile as any).country}`}
                   </p>
                 </div>
-                <div style={{
-                  display: "inline-flex", alignItems: "center", gap: "4px",
-                  padding: "4px 10px", borderRadius: "20px",
-                  background: "#fffbeb", border: "1px solid #fde68a", flexShrink: 0,
-                }}>
-                  <Star size={10} color="#d97706" />
-                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#d97706", fontFamily: "'JetBrains Mono', monospace" }}>PRO</span>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "#ecfdf5" : "#fffbeb", border: `1px solid ${profile?.twoFactorEnabled ? "#a7f3d0" : "#fde68a"}`, flexShrink: 0 }}>
+                  {profile?.twoFactorEnabled
+                    ? <><Shield size={10} color="#059669" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#059669", fontFamily: "'JetBrains Mono', monospace" }}>2FA ON</span></>
+                    : <><Star size={10} color="#d97706" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#d97706", fontFamily: "'JetBrains Mono', monospace" }}>PRO</span></>
+                  }
                 </div>
               </div>
-              <button onClick={() => setSection("edit")} style={{
-                display: "flex", alignItems: "center", gap: "5px",
-                marginTop: "10px", padding: "6px 12px", borderRadius: "8px",
-                background: "#f1f5f9", border: "1px solid #e2e8f0",
-                fontSize: "11px", fontWeight: 600, color: "#475569",
-                cursor: "pointer",
-              }}>
-                <Settings size={11} />
-                Edit Profile
+              <button onClick={() => setSection("edit")} style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "10px", padding: "6px 12px", borderRadius: "8px", background: "#f1f5f9", border: "1px solid #e2e8f0", fontSize: "11px", fontWeight: 600, color: "#475569", cursor: "pointer" }}>
+                <Settings size={11} /> Edit Profile
               </button>
             </div>
           </div>
 
-          {/* Stats strip */}
+          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
             {stats.map((s, i) => (
               <div key={i} style={{ padding: "10px 8px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2", textAlign: "center" }}>
-                <div style={{ fontSize: "15px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</div>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</div>
                 <div style={{ fontSize: "8px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "2px" }}>{s.label}</div>
               </div>
             ))}
@@ -279,41 +315,49 @@ export default function ProfilePage() {
         {/* ── OVERVIEW ── */}
         {section === "overview" && (
           <>
-            {/* Account */}
             <Card>
               <CardHeader icon={User} title="Account" color="#2563eb" />
-              <Row icon={User}  label="Edit Profile"  value="Name, contact info"       color="#2563eb" onClick={() => setSection("edit")} />
+              <Row icon={User} label="Edit Profile" value="Name, contact info" color="#2563eb" onClick={() => setSection("edit")} />
               <Div />
-              <Row icon={Key}   label="Password"      value="Change your password"     color="#059669" onClick={() => setSection("password")} />
+              <Row icon={Key} label="Password" value="Change your password" color="#059669" onClick={() => setSection("password")} />
             </Card>
 
-            {/* Preferences */}
-            <Card>
-              <CardHeader icon={Settings} title="Preferences" color="#7c3aed" />
-              <Row icon={Bell}  label="Notifications"  value="Alerts & activity"       color="#d97706" onClick={() => setSection("notifications")} />
-              <Div />
-              <Row icon={Globe} label="Language"       value="English (US)"            color="#0891b2" onClick={() => toast({ title: "Coming soon" })} />
-            </Card>
-
-            {/* Security */}
             <Card>
               <CardHeader icon={Shield} title="Security" color="#059669" />
-              <ToggleRow icon={Smartphone} label="Two-Factor Authentication" value="Extra login protection" color="#059669" defaultOn={profile?.twoFactorEnabled} />
+              <Row
+                icon={Smartphone}
+                label="Two-Factor Authentication"
+                value={profile?.twoFactorEnabled ? "Currently enabled — tap to disable" : "Not enabled — tap to set up"}
+                color={profile?.twoFactorEnabled ? "#059669" : "#d97706"}
+                badge={
+                  <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "#ecfdf5" : "#fffbeb", color: profile?.twoFactorEnabled ? "#059669" : "#d97706", flexShrink: 0 }}>
+                    {profile?.twoFactorEnabled ? "ON" : "OFF"}
+                  </span>
+                }
+                onClick={() => {
+                  if (profile?.twoFactorEnabled) {
+                    disableOtpForm.reset();
+                    setSection("2fa-disable");
+                  } else {
+                    on2FaSetup();
+                  }
+                }}
+              />
             </Card>
 
-            {/* Help & Support */}
             <Card>
-              <Row icon={HelpCircle} label="Help & Support" value="Contact, FAQ, community" color="#0891b2"
-                onClick={() => setLocation("/help")} />
+              <CardHeader icon={Settings} title="Preferences" color="#7c3aed" />
+              <Row icon={Bell} label="Notifications" value="Alerts & activity" color="#d97706" onClick={() => toast({ title: "Coming soon" })} />
+              <Div />
+              <Row icon={Globe} label="Language" value="English (US)" color="#0891b2" onClick={() => toast({ title: "Coming soon" })} />
             </Card>
 
-            {/* Sign Out */}
             <Card>
-              <button onClick={handleLogout} style={{
-                width: "100%", display: "flex", alignItems: "center", gap: "12px",
-                padding: "14px 16px", background: "none", border: "none", cursor: "pointer",
-                textAlign: "left",
-              }}>
+              <Row icon={HelpCircle} label="Help & Support" value="Tickets, FAQ, community" color="#0891b2" onClick={() => setLocation("/help")} />
+            </Card>
+
+            <Card>
+              <button onClick={handleLogout} style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
                 <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <LogOut size={15} color="#ef4444" />
                 </div>
@@ -336,63 +380,65 @@ export default function ProfilePage() {
               <div style={{ padding: "16px" }}>
                 <Form {...profileForm}>
                   <form onSubmit={profileForm.handleSubmit(onSaveProfile)} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-
-                    {/* Display Name */}
-                    <FormField control={profileForm.control} name="displayName" render={({ field }) => (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <FormField control={profileForm.control} name="firstName" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>First Name</FormLabel>
+                          <FormControl><Input placeholder="John" className="tb-input" style={{ height: "44px" }} {...field} /></FormControl>
+                          <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                        </FormItem>
+                      )} />
+                      <FormField control={profileForm.control} name="lastName" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Last Name</FormLabel>
+                          <FormControl><Input placeholder="Doe" className="tb-input" style={{ height: "44px" }} {...field} /></FormControl>
+                          <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                        </FormItem>
+                      )} />
+                    </div>
+                    <FormField control={profileForm.control} name="username" render={({ field }) => (
                       <FormItem>
-                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Display Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Your name" className="tb-input" style={{ height: "44px" }} {...field} />
-                        </FormControl>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <AtSign size={11} color="#94a3b8" /> Username
+                        </FormLabel>
+                        <FormControl><Input placeholder="trader_john" className="tb-input" style={{ height: "44px", fontFamily: "'JetBrains Mono', monospace" }} {...field} /></FormControl>
                         <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
-
-                    {/* Read-only: Trader ID */}
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Trader ID</label>
-                      <div style={{ height: "44px", display: "flex", alignItems: "center", padding: "0 12px", borderRadius: "10px", background: "#f8fafc", border: "1.5px solid #e2e8f0", fontSize: "13px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
-                        {profile?.traderId}
-                      </div>
-                    </div>
-
-                    {/* Read-only: Email */}
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Email</label>
-                      <div style={{ height: "44px", display: "flex", alignItems: "center", padding: "0 12px", borderRadius: "10px", background: "#f8fafc", border: "1.5px solid #e2e8f0", fontSize: "13px", color: "#94a3b8" }}>
-                        {profile?.email}
-                      </div>
-                    </div>
-
-                    {/* Telegram */}
+                    <FormField control={profileForm.control} name="country" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <MapPin size={11} color="#94a3b8" /> Country
+                        </FormLabel>
+                        <FormControl><Input placeholder="United States" className="tb-input" style={{ height: "44px" }} {...field} /></FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <div style={{ height: "1px", background: "#f1f5f9" }} />
                     <FormField control={profileForm.control} name="telegramHandle" render={({ field }) => (
                       <FormItem>
                         <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Telegram Handle</FormLabel>
-                        <FormControl>
-                          <Input placeholder="@username" className="tb-input" style={{ height: "44px", fontFamily: "'JetBrains Mono', monospace" }} {...field} />
-                        </FormControl>
+                        <FormControl><Input placeholder="@username" className="tb-input" style={{ height: "44px", fontFamily: "'JetBrains Mono', monospace" }} {...field} /></FormControl>
                         <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
-
-                    {/* WhatsApp */}
                     <FormField control={profileForm.control} name="whatsappNumber" render={({ field }) => (
                       <FormItem>
                         <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>WhatsApp Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="+1 234 567 8900" className="tb-input" style={{ height: "44px", fontFamily: "'JetBrains Mono', monospace" }} {...field} />
-                        </FormControl>
+                        <FormControl><Input placeholder="+1 234 567 8900" className="tb-input" style={{ height: "44px", fontFamily: "'JetBrains Mono', monospace" }} {...field} /></FormControl>
                         <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
-
-                    <button type="submit" disabled={updateProfile.isPending} style={{
-                      height: "48px", borderRadius: "14px", border: "none", cursor: "pointer",
-                      fontSize: "14px", fontWeight: 700, color: "white",
-                      background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-                      boxShadow: "0 4px 16px rgba(37,99,235,0.3)",
-                      opacity: updateProfile.isPending ? 0.7 : 1,
-                    }}>
+                    <div style={{ height: "1px", background: "#f1f5f9" }} />
+                    <div>
+                      <label style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Trader ID</label>
+                      <div style={{ height: "44px", display: "flex", alignItems: "center", padding: "0 12px", borderRadius: "10px", background: "#f8fafc", border: "1.5px solid #e2e8f0", fontSize: "13px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{profile?.traderId}</div>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "6px" }}>Email</label>
+                      <div style={{ height: "44px", display: "flex", alignItems: "center", padding: "0 12px", borderRadius: "10px", background: "#f8fafc", border: "1.5px solid #e2e8f0", fontSize: "13px", color: "#94a3b8" }}>{profile?.email}</div>
+                    </div>
+                    <button type="submit" disabled={updateProfile.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #2563eb, #1d4ed8)", boxShadow: "0 4px 16px rgba(37,99,235,0.3)", opacity: updateProfile.isPending ? 0.7 : 1 }}>
                       {updateProfile.isPending ? "Saving…" : "Save Changes"}
                     </button>
                   </form>
@@ -411,62 +457,26 @@ export default function ProfilePage() {
               <div style={{ padding: "16px" }}>
                 <Form {...passwordForm}>
                   <form onSubmit={passwordForm.handleSubmit(onChangePassword)} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-
-                    {/* Current */}
                     <FormField control={passwordForm.control} name="current" render={({ field }) => (
                       <FormItem>
-                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Current Password</FormLabel>
-                        <FormControl>
-                          <div style={{ position: "relative" }}>
-                            <Input type={showCurrent ? "text" : "password"} placeholder="••••••••" className="tb-input" style={{ height: "44px", paddingRight: "40px" }} {...field} />
-                            <button type="button" onClick={() => setShowCurrent(p => !p)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                              {showCurrent ? <EyeOff size={15} color="#94a3b8" /> : <Eye size={15} color="#94a3b8" />}
-                            </button>
-                          </div>
-                        </FormControl>
+                        <PwField label="Current Password" field={field} show={showPw.current} toggle={() => setShowPw(p => ({ ...p, current: !p.current }))} />
                         <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
-
-                    {/* New */}
                     <FormField control={passwordForm.control} name="next" render={({ field }) => (
                       <FormItem>
-                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>New Password</FormLabel>
-                        <FormControl>
-                          <div style={{ position: "relative" }}>
-                            <Input type={showNext ? "text" : "password"} placeholder="Min. 8 characters" className="tb-input" style={{ height: "44px", paddingRight: "40px" }} {...field} />
-                            <button type="button" onClick={() => setShowNext(p => !p)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                              {showNext ? <EyeOff size={15} color="#94a3b8" /> : <Eye size={15} color="#94a3b8" />}
-                            </button>
-                          </div>
-                        </FormControl>
+                        <PwField label="New Password" field={field} show={showPw.next} toggle={() => setShowPw(p => ({ ...p, next: !p.next }))} />
                         <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
-
-                    {/* Confirm */}
                     <FormField control={passwordForm.control} name="confirm" render={({ field }) => (
                       <FormItem>
-                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Confirm New Password</FormLabel>
-                        <FormControl>
-                          <div style={{ position: "relative" }}>
-                            <Input type={showConfirm ? "text" : "password"} placeholder="Repeat new password" className="tb-input" style={{ height: "44px", paddingRight: "40px" }} {...field} />
-                            <button type="button" onClick={() => setShowConfirm(p => !p)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                              {showConfirm ? <EyeOff size={15} color="#94a3b8" /> : <Eye size={15} color="#94a3b8" />}
-                            </button>
-                          </div>
-                        </FormControl>
+                        <PwField label="Confirm New Password" field={field} show={showPw.confirm} toggle={() => setShowPw(p => ({ ...p, confirm: !p.confirm }))} />
                         <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                       </FormItem>
                     )} />
-
-                    <button type="submit" style={{
-                      height: "48px", borderRadius: "14px", border: "none", cursor: "pointer",
-                      fontSize: "14px", fontWeight: 700, color: "white",
-                      background: "linear-gradient(135deg, #059669, #047857)",
-                      boxShadow: "0 4px 16px rgba(5,150,105,0.3)",
-                    }}>
-                      Update Password
+                    <button type="submit" disabled={changePassword.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #059669, #047857)", boxShadow: "0 4px 16px rgba(5,150,105,0.3)", opacity: changePassword.isPending ? 0.7 : 1 }}>
+                      {changePassword.isPending ? "Updating…" : "Update Password"}
                     </button>
                   </form>
                 </Form>
@@ -475,36 +485,131 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── NOTIFICATIONS ── */}
-        {section === "notifications" && (
+        {/* ── 2FA SETUP ── */}
+        {section === "2fa-setup" && qrData && (
           <div>
             <BackBtn onClick={() => setSection("overview")} />
-
             <Card>
-              <CardHeader icon={Bell} title="Trade Alerts" color="#d97706" />
-              <ToggleRow icon={Bell}       label="Shipment funded"       value="When a shipment hits 100%"    color="#d97706" defaultOn />
-              <Div />
-              <ToggleRow icon={TrendingUp} label="Delivery confirmed"    value="When cargo is delivered"      color="#059669" defaultOn />
-              <Div />
-              <ToggleRow icon={Ship}       label="New routes available"  value="Fresh shipment listings"      color="#2563eb" defaultOn />
+              <CardHeader icon={Shield} title="Set Up 2FA" color="#059669" />
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+                {/* Step 1 */}
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700, color: "white", flexShrink: 0 }}>1</div>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>Scan this QR code with your authenticator app</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "20px", background: "#f8fafc", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ background: "white", padding: "12px", borderRadius: "8px" }}>
+                      <QRCode value={qrData.otpauth} size={160} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manual entry */}
+                <div style={{ padding: "12px 14px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                  <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Manual Entry Code</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <code style={{ flex: 1, fontSize: "12px", color: "#0f172a", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", wordBreak: "break-all" }}>
+                      {qrData.secret}
+                    </code>
+                    <button onClick={() => { navigator.clipboard.writeText(qrData.secret); toast({ title: "Copied!" }); }} style={{ padding: "5px 10px", borderRadius: "8px", background: "#eff6ff", border: "1px solid #bfdbfe", cursor: "pointer", fontSize: "11px", fontWeight: 600, color: "#2563eb", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                      <Copy size={11} /> Copy
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700, color: "white", flexShrink: 0 }}>2</div>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>Enter the 6-digit code to confirm</span>
+                  </div>
+                  <Form {...otpForm}>
+                    <form onSubmit={otpForm.handleSubmit(onVerify2Fa)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <FormField control={otpForm.control} name="token" render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input {...field} placeholder="000000" maxLength={6} className="tb-input h-14 text-center text-2xl tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.3em" }} />
+                          </FormControl>
+                          <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                        </FormItem>
+                      )} />
+                      <button type="submit" disabled={verifyTwoFa.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #059669, #047857)", boxShadow: "0 4px 16px rgba(5,150,105,0.3)", opacity: verifyTwoFa.isPending ? 0.7 : 1 }}>
+                        {verifyTwoFa.isPending ? "Verifying..." : "Enable 2FA"}
+                      </button>
+                    </form>
+                  </Form>
+                </div>
+
+              </div>
             </Card>
+          </div>
+        )}
 
+        {/* ── 2FA RECOVERY CODES ── */}
+        {section === "2fa-codes" && (
+          <div>
             <Card>
-              <CardHeader icon={Bell} title="Financial Alerts" color="#2563eb" />
-              <ToggleRow icon={Bell} label="Deposit received"   value="Wallet credit notifications" color="#059669" defaultOn />
-              <Div />
-              <ToggleRow icon={Bell} label="Withdrawal sent"    value="Payout confirmations"        color="#7c3aed" defaultOn />
-              <Div />
-              <ToggleRow icon={Bell} label="Guild activity"     value="Team updates and rewards"    color="#d97706" />
+              <CardHeader icon={Key} title="Recovery Codes" color="#d97706" />
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ padding: "12px 14px", borderRadius: "12px", background: "#fffbeb", border: "1px solid #fde68a", display: "flex", gap: "10px" }}>
+                  <AlertTriangle size={16} color="#d97706" style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <p style={{ margin: 0, fontSize: "12px", color: "#92400e", lineHeight: 1.5 }}>
+                    Save these codes in a safe place. Each can be used once to sign in if you lose access to your authenticator app.
+                  </p>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  {recoveryCodes.map((code, i) => (
+                    <button key={i} onClick={() => copyCode(code)} style={{ padding: "10px 12px", borderRadius: "10px", background: copiedCode === code ? "#ecfdf5" : "#f8fafc", border: `1px solid ${copiedCode === code ? "#a7f3d0" : "#e2e8f0"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                      <code style={{ fontSize: "11px", fontFamily: "'JetBrains Mono', monospace", color: "#0f172a", letterSpacing: "0.05em" }}>{code}</code>
+                      {copiedCode === code ? <Check size={11} color="#059669" /> : <Copy size={11} color="#94a3b8" />}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText(recoveryCodes.join("\n")); toast({ title: "All codes copied!" }); }} style={{ height: "42px", borderRadius: "12px", border: "1.5px solid #e2e8f0", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#64748b", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                  <Copy size={13} /> Copy All Codes
+                </button>
+                <button onClick={() => setSection("overview")} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #2563eb, #1d4ed8)", boxShadow: "0 4px 16px rgba(37,99,235,0.3)" }}>
+                  Done — I've saved my codes
+                </button>
+              </div>
             </Card>
+          </div>
+        )}
 
+        {/* ── 2FA DISABLE ── */}
+        {section === "2fa-disable" && (
+          <div>
+            <BackBtn onClick={() => setSection("overview")} />
             <Card>
-              <CardHeader icon={Bell} title="Channels" color="#0891b2" />
-              <ToggleRow icon={Bell} label="Push notifications"  value="On-device alerts"     color="#2563eb" defaultOn />
-              <Div />
-              <ToggleRow icon={Bell} label="Email notifications" value={profile?.email || "Your email"} color="#0891b2" defaultOn />
-              <Div />
-              <ToggleRow icon={Bell} label="Telegram alerts"     value={profile?.telegramHandle ? `@${profile.telegramHandle}` : "Link Telegram first"} color="#0891b2" />
+              <CardHeader icon={X} title="Disable 2FA" color="#ef4444" />
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ padding: "12px 14px", borderRadius: "12px", background: "#fef2f2", border: "1px solid #fecaca", display: "flex", gap: "10px" }}>
+                  <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <p style={{ margin: 0, fontSize: "12px", color: "#991b1b", lineHeight: 1.5 }}>
+                    Disabling 2FA reduces your account security. Enter your authenticator code or a recovery code to confirm.
+                  </p>
+                </div>
+                <Form {...disableOtpForm}>
+                  <form onSubmit={disableOtpForm.handleSubmit(onDisable2Fa)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <FormField control={disableOtpForm.control} name="token" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          OTP Code or Recovery Code
+                        </FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="000000 or XXXX-XXXX" className="tb-input h-14 text-center tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "16px", letterSpacing: "0.2em" }} />
+                        </FormControl>
+                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
+                      </FormItem>
+                    )} />
+                    <button type="submit" disabled={disableTwoFa.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #ef4444, #dc2626)", boxShadow: "0 4px 16px rgba(239,68,68,0.3)", opacity: disableTwoFa.isPending ? 0.7 : 1 }}>
+                      {disableTwoFa.isPending ? "Disabling..." : "Disable 2FA"}
+                    </button>
+                  </form>
+                </Form>
+              </div>
             </Card>
           </div>
         )}

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./src/extra-hooks": "./src/extra-hooks.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:"

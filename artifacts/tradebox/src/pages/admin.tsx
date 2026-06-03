@@ -5,10 +5,15 @@ import {
   useAdminRejectKyc, useAdminListUsers, useAdminListShipments, useAdminCreateShipment, 
   useAdminDeliverShipment, useAdminUpdateShipment 
 } from "@workspace/api-client-react";
+import {
+  useGetSupportSettings, useUpdateSupportSettings,
+  useGetTickets, useReplyTicket, useUpdateTicketStatus,
+  type SupportTicket,
+} from "@workspace/api-client-react/src/extra-hooks";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ShieldAlert, Users, Anchor, Wallet, FileCheck, Check, X, Search, Plus } from "lucide-react";
+import { ShieldAlert, Users, Anchor, Wallet, FileCheck, Check, X, Search, Plus, MessageSquare, Settings, Clock, RefreshCw, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +25,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 export default function AdminDashboard() {
   const { data: stats } = useAdminGetStats();
+  const { data: tickets } = useGetTickets();
   const [activeTab, setActiveTab] = useState("overview");
+  const openTicketCount = tickets?.filter(t => t.status === "open").length ?? 0;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F4F7FB] text-[#0F1923] p-4 md:p-8">
@@ -73,6 +80,10 @@ export default function AdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="shipments" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Shipments</TabsTrigger>
             <TabsTrigger value="users" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Users</TabsTrigger>
+            <TabsTrigger value="tickets" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">
+              Tickets {openTicketCount > 0 ? `(${openTicketCount})` : ''}
+            </TabsTrigger>
+            <TabsTrigger value="support-settings" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Support Config</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -86,6 +97,8 @@ export default function AdminDashboard() {
           <TabsContent value="kyc"><AdminKyc /></TabsContent>
           <TabsContent value="shipments"><AdminShipments /></TabsContent>
           <TabsContent value="users"><AdminUsers /></TabsContent>
+          <TabsContent value="tickets"><AdminTickets /></TabsContent>
+          <TabsContent value="support-settings"><AdminSupportSettings /></TabsContent>
 
         </Tabs>
       </div>
@@ -374,6 +387,269 @@ function AdminUsers() {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Status badge configs ─────────────────────────────────────────────────────
+
+const statusCfg: Record<string, { color: string; bg: string; border: string; label: string }> = {
+  open:        { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "Open" },
+  in_progress: { color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", label: "In Progress" },
+  closed:      { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "Resolved" },
+};
+
+// ── Admin Tickets ────────────────────────────────────────────────────────────
+
+function AdminTickets() {
+  const { data: tickets, refetch } = useGetTickets();
+  const replyTicket = useReplyTicket();
+  const updateStatus = useUpdateTicketStatus();
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState<Record<number, string>>({});
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filtered = (tickets || []).filter(t =>
+    statusFilter === "all" ? true : t.status === statusFilter
+  );
+
+  const handleReply = (ticketId: number) => {
+    const msg = replyText[ticketId]?.trim();
+    if (!msg) return;
+    replyTicket.mutate({ ticketId, message: msg }, {
+      onSuccess: () => {
+        toast({ title: "Reply sent" });
+        setReplyText(p => ({ ...p, [ticketId]: "" }));
+        refetch();
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
+    });
+  };
+
+  const handleStatus = (ticketId: number, status: string) => {
+    updateStatus.mutate({ ticketId, status }, {
+      onSuccess: () => { toast({ title: "Status updated" }); refetch(); },
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
+    });
+  };
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="bg-white border border-[#EEF2F8] rounded-lg px-3 py-2 text-sm font-mono text-[#0F1923] focus:outline-none"
+        >
+          <option value="all">All Tickets</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="closed">Resolved</option>
+        </select>
+        <span className="text-xs font-mono text-[#6A82A0] uppercase">{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="bg-white p-12 rounded-xl border border-[#EEF2F8] text-center text-[#6A82A0] font-mono text-sm shadow-sm">
+          No tickets found
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(ticket => {
+            const cfg = statusCfg[ticket.status] || statusCfg.open;
+            const isOpen = expanded === ticket.id;
+            return (
+              <div key={ticket.id} className="bg-white rounded-xl border border-[#EEF2F8] overflow-hidden shadow-sm">
+                <div
+                  className="flex items-start gap-3 p-4 cursor-pointer hover:bg-[#F8FAFD]"
+                  onClick={() => setExpanded(isOpen ? null : ticket.id)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sm text-[#0F1923]">#{ticket.id}</span>
+                      <span className="font-semibold text-sm text-[#0F1923] truncate">{ticket.subject}</span>
+                      <span
+                        className="text-xs font-mono font-bold px-2 py-0.5 rounded-full border"
+                        style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}
+                      >
+                        {cfg.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#6A82A0] mt-1 font-mono">
+                      {ticket.user?.email || "User"} · {ticket.user?.traderId} · {new Date(ticket.createdAt).toLocaleDateString()}
+                      {ticket.replies.length > 0 && ` · ${ticket.replies.length} repl${ticket.replies.length > 1 ? "ies" : "y"}`}
+                    </p>
+                  </div>
+                  {isOpen ? <ChevronUp className="h-4 w-4 text-[#6A82A0] shrink-0 mt-0.5" /> : <ChevronDown className="h-4 w-4 text-[#6A82A0] shrink-0 mt-0.5" />}
+                </div>
+
+                {isOpen && (
+                  <div className="border-t border-[#EEF2F8] p-4 space-y-4">
+                    {/* Original message */}
+                    <div className="p-3 bg-[#F8FAFD] rounded-lg border border-[#EEF2F8]">
+                      <p className="text-xs font-mono font-bold text-[#6A82A0] uppercase mb-1">User's message</p>
+                      <p className="text-sm text-[#0F1923] leading-relaxed">{ticket.message}</p>
+                    </div>
+
+                    {/* Replies */}
+                    {ticket.replies.length > 0 && (
+                      <div className="space-y-2">
+                        {ticket.replies.map(reply => (
+                          <div
+                            key={reply.id}
+                            className="p-3 rounded-lg border"
+                            style={{
+                              background: reply.isAdmin ? "#eff6ff" : "#f8fafc",
+                              borderColor: reply.isAdmin ? "#bfdbfe" : "#e2e8f0",
+                            }}
+                          >
+                            <p className="text-xs font-mono font-bold mb-1" style={{ color: reply.isAdmin ? "#2563eb" : "#64748b" }}>
+                              {reply.isAdmin ? "Support Team" : "User"} · {new Date(reply.createdAt).toLocaleString()}
+                            </p>
+                            <p className="text-sm text-[#0F1923] leading-relaxed">{reply.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Admin actions */}
+                    <div className="flex items-start gap-3">
+                      <textarea
+                        value={replyText[ticket.id] || ""}
+                        onChange={e => setReplyText(p => ({ ...p, [ticket.id]: e.target.value }))}
+                        placeholder="Write a reply…"
+                        rows={2}
+                        className="flex-1 p-2 text-sm border border-[#EEF2F8] rounded-lg bg-[#F8FAFD] text-[#0F1923] resize-none focus:outline-none focus:border-[#0066FF]"
+                      />
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          className="bg-[#0066FF] hover:bg-[#0052CC] text-white"
+                          onClick={() => handleReply(ticket.id)}
+                          disabled={replyTicket.isPending}
+                        >
+                          Reply
+                        </Button>
+                        <select
+                          value={ticket.status}
+                          onChange={e => handleStatus(ticket.id, e.target.value)}
+                          className="bg-white border border-[#EEF2F8] rounded-lg px-2 py-1.5 text-xs font-mono text-[#0F1923] focus:outline-none"
+                        >
+                          <option value="open">Open</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="closed">Resolved</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Admin Support Settings ───────────────────────────────────────────────────
+
+const supportSettingsSchema = z.object({
+  telegramSupport: z.string().optional(),
+  whatsappSupport: z.string().optional(),
+  supportEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+  telegramGroup: z.string().optional(),
+  whatsappCommunity: z.string().optional(),
+  announcementChannel: z.string().optional(),
+});
+
+function AdminSupportSettings() {
+  const { data: settings, isLoading } = useGetSupportSettings();
+  const update = useUpdateSupportSettings();
+  const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof supportSettingsSchema>>({
+    resolver: zodResolver(supportSettingsSchema),
+    values: {
+      telegramSupport:    settings?.telegramSupport    || "",
+      whatsappSupport:    settings?.whatsappSupport    || "",
+      supportEmail:       settings?.supportEmail       || "",
+      telegramGroup:      settings?.telegramGroup      || "",
+      whatsappCommunity:  settings?.whatsappCommunity  || "",
+      announcementChannel: settings?.announcementChannel || "",
+    },
+  });
+
+  const onSave = (data: z.infer<typeof supportSettingsSchema>) => {
+    const cleaned: Record<string, string | null> = {};
+    for (const [k, v] of Object.entries(data)) {
+      cleaned[k] = v?.trim() || null;
+    }
+    update.mutate(cleaned as any, {
+      onSuccess: () => toast({ title: "Support settings saved" }),
+      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
+    });
+  };
+
+  if (isLoading) {
+    return <div className="mt-6 bg-white p-8 rounded-xl border border-[#EEF2F8] text-center text-[#6A82A0] font-mono text-sm">Loading…</div>;
+  }
+
+  const fields: Array<{ name: keyof z.infer<typeof supportSettingsSchema>; label: string; placeholder: string; hint: string }> = [
+    { name: "telegramSupport",    label: "Telegram Support Handle",     placeholder: "@TradeBoxSupport",         hint: "Shown on Help page as primary contact" },
+    { name: "whatsappSupport",    label: "WhatsApp Support Number",     placeholder: "+18005557823",             hint: "E.164 format" },
+    { name: "supportEmail",       label: "Support Email",               placeholder: "support@tradebox.io",      hint: "Email address for user queries" },
+    { name: "telegramGroup",      label: "Telegram Community Group URL", placeholder: "https://t.me/TradeBoxCommunity", hint: "Shown in community links" },
+    { name: "whatsappCommunity",  label: "WhatsApp Community URL",      placeholder: "https://wa.me/join/...",   hint: "Shown in community links" },
+    { name: "announcementChannel", label: "Announcement Channel URL",   placeholder: "https://t.me/...",         hint: "News & updates channel" },
+  ];
+
+  return (
+    <div className="mt-6 max-w-2xl">
+      <div className="bg-white rounded-xl border border-[#EEF2F8] overflow-hidden shadow-sm">
+        <div className="flex items-center gap-3 p-5 border-b border-[#EEF2F8]">
+          <Settings className="h-5 w-5 text-[#EF4444]" />
+          <div>
+            <h2 className="font-bold text-[#0F1923]">Support Contact Configuration</h2>
+            <p className="text-xs text-[#6A82A0] font-mono">Changes appear live in the Help & Support page</p>
+          </div>
+        </div>
+        <div className="p-5">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSave)} className="space-y-5">
+              {fields.map(f => (
+                <FormField
+                  key={f.name}
+                  control={form.control}
+                  name={f.name}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-mono uppercase text-[#6A82A0] font-bold tracking-wider">{f.label}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          value={field.value || ""}
+                          placeholder={f.placeholder}
+                          className="bg-[#F8FAFD] border-[#EEF2F8] text-[#0F1923] font-mono text-sm"
+                        />
+                      </FormControl>
+                      <p className="text-xs text-[#94a3b8] mt-1">{f.hint}</p>
+                    </FormItem>
+                  )}
+                />
+              ))}
+              <Button
+                type="submit"
+                disabled={update.isPending}
+                className="w-full bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold"
+              >
+                {update.isPending ? "Saving…" : "Save Support Settings"}
+              </Button>
+            </form>
+          </Form>
+        </div>
       </div>
     </div>
   );

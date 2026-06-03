@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, usersTable, kycTable, investmentsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { UpdateProfileBody, SubmitKycBody, UpdateWalletAddressesBody } from "@workspace/api-zod";
 
@@ -13,7 +13,6 @@ async function buildProfile(user: typeof usersTable.$inferSelect) {
   const totalProfit = delivered.reduce((acc, i) => acc + Number(i.actualProfit ?? 0), 0);
   const totalShipped = invs.reduce((acc, i) => acc + Number(i.amount), 0);
 
-  // Count unique countries
   const { shipmentsTable } = await import("@workspace/db");
   const shipmentIds = [...new Set(invs.map(i => i.shipmentId))];
   const countries = new Set<string>();
@@ -30,6 +29,10 @@ async function buildProfile(user: typeof usersTable.$inferSelect) {
     email: user.email,
     traderId: user.traderId,
     kycStatus: user.kycStatus,
+    firstName: user.firstName ?? null,
+    lastName: user.lastName ?? null,
+    username: user.username ?? null,
+    country: user.country ?? null,
     telegramHandle: user.telegramHandle ?? null,
     whatsappNumber: user.whatsappNumber ?? null,
     twoFactorEnabled: user.twoFactorEnabled,
@@ -52,10 +55,7 @@ async function buildProfile(user: typeof usersTable.$inferSelect) {
 router.get("/", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(await buildProfile(user));
 });
 
@@ -63,14 +63,28 @@ router.patch("/", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
   const parsed = UpdateProfileBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   const data = parsed.data;
+  const { firstName, lastName, username, country } = req.body as {
+    firstName?: string | null; lastName?: string | null; username?: string | null; country?: string | null;
+  };
+
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (data.telegramHandle !== undefined) updates.telegramHandle = data.telegramHandle ?? undefined;
   if (data.whatsappNumber !== undefined) updates.whatsappNumber = data.whatsappNumber ?? undefined;
-  if (data.twoFactorEnabled !== undefined) updates.twoFactorEnabled = data.twoFactorEnabled ?? undefined;
+  if (firstName !== undefined) updates.firstName = firstName ?? undefined;
+  if (lastName !== undefined) updates.lastName = lastName ?? undefined;
+  if (country !== undefined) updates.country = country ?? undefined;
+  if (username !== undefined) {
+    if (username) {
+      const check = await db.select().from(usersTable).where(eq(usersTable.username, username)).limit(1);
+      if (check.length > 0 && check[0].id !== userId) {
+        res.status(400).json({ error: "Username already taken" }); return;
+      }
+    }
+    updates.username = username ?? undefined;
+  }
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
   res.json(await buildProfile(user));
@@ -80,8 +94,7 @@ router.post("/kyc", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
   const parsed = SubmitKycBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   const { idDocumentUrl, selfieUrl, proofOfAddressUrl } = parsed.data;
 
@@ -101,8 +114,7 @@ router.patch("/wallet-addresses", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
   const parsed = UpdateWalletAddressesBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
+    res.status(400).json({ error: "Invalid input" }); return;
   }
   const { btc, eth, usdt, bnb } = parsed.data;
   const updates: Partial<typeof usersTable.$inferInsert> = {};

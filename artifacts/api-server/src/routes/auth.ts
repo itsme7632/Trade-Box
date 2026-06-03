@@ -1,11 +1,14 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { signToken, requireAuth } from "../lib/auth";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { createDecipheriv, createHash } from "crypto";
 
 const router = Router();
+const JWT_SECRET = process.env.JWT_SECRET ?? "fallback-secret";
 
 function generateTraderId(): string {
   const num = Math.floor(Math.random() * 9000) + 1000;
@@ -19,6 +22,19 @@ function generateGuildCode(): string {
   return code;
 }
 
+function deriveKey(secret: string): Buffer {
+  return createHash("sha256").update(secret).digest();
+}
+
+function decrypt2faSecret(data: string): string {
+  const key = deriveKey(JWT_SECRET);
+  const [ivHex, encHex] = data.split(":");
+  const iv = Buffer.from(ivHex, "hex");
+  const enc = Buffer.from(encHex, "hex");
+  const decipher = createDecipheriv("aes-256-cbc", key, iv);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+}
+
 router.post("/register", async (req, res) => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
@@ -26,11 +42,22 @@ router.post("/register", async (req, res) => {
     return;
   }
   const { email, password, referralCode } = parsed.data;
+  const { firstName, lastName, username, country } = req.body as {
+    firstName?: string; lastName?: string; username?: string; country?: string;
+  };
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (existing.length > 0) {
     res.status(400).json({ error: "Email already registered" });
     return;
+  }
+
+  if (username) {
+    const usernameCheck = await db.select().from(usersTable).where(eq(usersTable.username, username)).limit(1);
+    if (usernameCheck.length > 0) {
+      res.status(400).json({ error: "Username already taken" });
+      return;
+    }
   }
 
   let referredBy: string | null = null;
@@ -41,9 +68,8 @@ router.post("/register", async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
   let traderId = generateTraderId();
-  let guildCode = generateGuildCode();
+  const guildCode = generateGuildCode();
 
-  // ensure uniqueness
   let attempts = 0;
   while (attempts < 10) {
     const idCheck = await db.select().from(usersTable).where(eq(usersTable.traderId, traderId)).limit(1);
@@ -58,6 +84,10 @@ router.post("/register", async (req, res) => {
     traderId,
     guildCode,
     referredBy,
+    firstName: firstName ?? null,
+    lastName: lastName ?? null,
+    username: username ?? null,
+    country: country ?? null,
     role: "user",
     kycStatus: "none",
   }).returning();
@@ -86,14 +116,14 @@ router.post("/login", async (req, res) => {
   const { email, password } = parsed.data;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-  if (!user) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
+  if (!user) { res.status(401).json({ error: "Invalid credentials" }); return; }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
+  if (!valid) { res.status(401).json({ error: "Invalid credentials" }); return; }
+
+  if (user.twoFactorEnabled && user.twoFactorSecret) {
+    const tempToken = jwt.sign({ userId: user.id }, JWT_SECRET + ":2fa", { expiresIn: "5m" });
+    res.json({ requiresOtp: true, tempToken });
     return;
   }
 
@@ -115,10 +145,7 @@ router.post("/login", async (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  if (!user) {
-    res.status(401).json({ error: "User not found" });
-    return;
-  }
+  if (!user) { res.status(401).json({ error: "User not found" }); return; }
   res.json({
     id: user.id,
     email: user.email,
@@ -128,6 +155,27 @@ router.get("/me", requireAuth, async (req, res) => {
     kycStatus: user.kycStatus,
     createdAt: user.createdAt.toISOString(),
   });
+});
+
+router.post("/change-password", requireAuth, async (req, res) => {
+  const userId = (req as typeof req & { user: { userId: number } }).user.userId;
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" }); return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" }); return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+  res.json({ success: true });
 });
 
 export default router;

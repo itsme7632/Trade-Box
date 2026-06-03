@@ -5,3 +5,5 @@ export * from "./transactions";
 export * from "./kyc";
 export * from "./crypto_wallets";
 export * from "./port_activity";
+export * from "./support_settings";
+export * from "./support_tickets";
