@@ -74,13 +74,14 @@ router.patch("/", requireAuth, async (req, res) => {
   if (lastName !== undefined) updates.lastName = lastName ?? undefined;
   if (country !== undefined) updates.country = country ?? undefined;
   if (username !== undefined) {
-    if (username) {
-      const check = await db.select().from(usersTable).where(eq(usersTable.username, username)).limit(1);
+    const normalizedUsername = username === "" ? null : (username ?? null);
+    if (normalizedUsername) {
+      const check = await db.select().from(usersTable).where(eq(usersTable.username, normalizedUsername)).limit(1);
       if (check.length > 0 && check[0].id !== userId) {
         res.status(400).json({ error: "Username already taken" }); return;
       }
     }
-    updates.username = username ?? undefined;
+    updates.username = normalizedUsername ?? undefined;
   }
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();

@@ -225,6 +225,40 @@ paths:
         "401":
           description: Invalid code
 
+  /admin/support-settings:
+    get:
+      operationId: adminGetSupportSettings
+      tags: [admin]
+      summary: Get support contact settings (admin)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportSettings"
+        "403":
+          description: Admin only
+    patch:
+      operationId: adminUpdateSupportSettings
+      tags: [admin]
+      summary: Update support contact settings (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportSettings"
+        "403":
+          description: Admin only
+
   /support/settings:
     get:
       operationId: getSupportSettings
@@ -290,6 +324,27 @@ paths:
                 $ref: "#/components/schemas/SupportTicket"
 
   /support/tickets/{ticketId}:
+    get:
+      operationId: getSupportTicket
+      tags: [support]
+      summary: Get a single support ticket with replies
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found
     patch:
       operationId: updateTicketStatus
       tags: [support]

@@ -1,9 +1,19 @@
 import { Router } from "express";
-import { db, usersTable, transactionsTable, kycTable, shipmentsTable, investmentsTable, cryptoWalletsTable } from "@workspace/db";
+import { db, usersTable, transactionsTable, kycTable, shipmentsTable, investmentsTable, cryptoWalletsTable, supportSettingsTable } from "@workspace/db";
 import { eq, and, like } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { AdminRejectDepositBody, AdminProcessWithdrawalBody, AdminRejectKycBody, AdminCreditProfitBody, AdminCreateShipmentBody, AdminUpdateShipmentBody, AdminUpdateCryptoWalletsBody } from "@workspace/api-zod";
+
+const SupportSettingsPatchBody = z.object({
+  telegramSupport: z.string().optional(),
+  whatsappSupport: z.string().optional(),
+  supportEmail: z.string().email().optional(),
+  telegramGroup: z.string().optional(),
+  whatsappCommunity: z.string().optional(),
+  announcementChannel: z.string().optional(),
+});
 
 const router = Router();
 
@@ -533,6 +543,40 @@ router.patch("/crypto-wallets", async (req, res) => {
   }
   const wallets = await db.select().from(cryptoWalletsTable);
   res.json(wallets.map(w => ({ coin: w.coin, address: w.address, network: w.network })));
+});
+
+// ── Admin support settings (canonical admin path) ────────────────────────────
+
+router.get("/support-settings", async (_req, res) => {
+  const [settings] = await db.select().from(supportSettingsTable).limit(1);
+  res.json(settings ?? {
+    telegramSupport: null, whatsappSupport: null, supportEmail: null,
+    telegramGroup: null, whatsappCommunity: null, announcementChannel: null,
+  });
+});
+
+router.patch("/support-settings", async (req, res) => {
+  const parsed = SupportSettingsPatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { telegramSupport, whatsappSupport, supportEmail, telegramGroup, whatsappCommunity, announcementChannel } = parsed.data;
+
+  const existing = await db.select().from(supportSettingsTable).limit(1);
+  if (existing.length === 0) {
+    const [row] = await db.insert(supportSettingsTable).values({
+      telegramSupport, whatsappSupport, supportEmail, telegramGroup, whatsappCommunity, announcementChannel,
+    }).returning();
+    res.json(row);
+  } else {
+    const updates: Record<string, unknown> = {};
+    if (telegramSupport !== undefined) updates.telegramSupport = telegramSupport;
+    if (whatsappSupport !== undefined) updates.whatsappSupport = whatsappSupport;
+    if (supportEmail !== undefined) updates.supportEmail = supportEmail;
+    if (telegramGroup !== undefined) updates.telegramGroup = telegramGroup;
+    if (whatsappCommunity !== undefined) updates.whatsappCommunity = whatsappCommunity;
+    if (announcementChannel !== undefined) updates.announcementChannel = announcementChannel;
+    const [row] = await db.update(supportSettingsTable).set(updates).where(eq(supportSettingsTable.id, existing[0].id)).returning();
+    res.json(row);
+  }
 });
 
 export default router;

@@ -515,7 +515,7 @@ export const GetProfileResponse = zod.object({
 export const UpdateProfileBody = zod.object({
   "firstName": zod.string().nullish(),
   "lastName": zod.string().nullish(),
-  "username": zod.string().regex(/^[a-zA-Z0-9_]+$/).nullish(),
+  "username": zod.string().regex(/^[a-zA-Z0-9_]*$/).nullish(),
   "country": zod.string().nullish(),
   "telegramHandle": zod.string().nullish(),
   "whatsappNumber": zod.string().nullish(),
