@@ -14,6 +14,7 @@ import ProfilePage from "@/pages/profile";
 import HelpPage from "@/pages/help";
 import TrackerShipmentDetail from "@/pages/tracker-shipment";
 import AdminDashboard from "@/pages/admin";
+import SecurityPage from "@/pages/security";
 import { Loader2 } from "lucide-react";
 import { memo, type ComponentType } from "react";
 
@@ -87,6 +88,9 @@ const RouteAdmin = memo(function RouteAdmin() {
 const RouteHelp = memo(function RouteHelp() {
   return <ProtectedLayout component={HelpPage} />;
 });
+const RouteSecurity = memo(function RouteSecurity() {
+  return <ProtectedLayout component={SecurityPage} />;
+});
 const RouteTrackerShipment = memo(function RouteTrackerShipment() {
   return <ProtectedLayout component={TrackerShipmentDetail} />;
 });
@@ -112,6 +116,7 @@ export function AppRouter() {
       <Route path="/wallet" component={RouteWallet} />
       <Route path="/guild" component={RouteGuild} />
       <Route path="/profile" component={RouteProfile} />
+      <Route path="/security/2fa" component={RouteSecurity} />
       <Route path="/help" component={RouteHelp} />
       <Route path="/admin" component={RouteAdmin} />
 

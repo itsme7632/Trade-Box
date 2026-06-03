@@ -8,7 +8,11 @@ import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { createDecipheriv, createHash } from "crypto";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET ?? "fallback-secret";
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET env var is required in production");
+  console.warn("[WARN] JWT_SECRET not set — using insecure fallback. Set JWT_SECRET in production!");
+  return "dev-fallback-secret-DO-NOT-USE-IN-PROD";
+})();
 
 function generateTraderId(): string {
   const num = Math.floor(Math.random() * 9000) + 1000;
@@ -41,10 +45,17 @@ router.post("/register", async (req, res) => {
     res.status(400).json({ error: "Invalid input", details: parsed.error.issues });
     return;
   }
-  const { email, password, referralCode } = parsed.data;
-  const { firstName, lastName, username, country } = req.body as {
-    firstName?: string; lastName?: string; username?: string; country?: string;
-  };
+  const {
+    email, password, referralCode,
+    firstName, lastName, username, country,
+    telegramHandle, whatsappNumber,
+    agreedToTerms, ageConfirmed,
+  } = parsed.data;
+
+  if (!agreedToTerms || !ageConfirmed) {
+    res.status(400).json({ error: "You must agree to the Terms and confirm you are 18 or older" });
+    return;
+  }
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (existing.length > 0) {
@@ -88,6 +99,8 @@ router.post("/register", async (req, res) => {
     lastName: lastName ?? null,
     username: username ?? null,
     country: country ?? null,
+    telegramHandle: telegramHandle ?? null,
+    whatsappNumber: whatsappNumber ?? null,
     role: "user",
     kycStatus: "none",
   }).returning();

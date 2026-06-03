@@ -1,18 +1,15 @@
 import { useState, useRef } from "react";
 import { useGetProfile, useUpdateProfile } from "@workspace/api-client-react";
-import {
-  useTwoFaSetup, useTwoFaVerify, useTwoFaDisable, useChangePassword
-} from "@workspace/api-client-react/src/extra-hooks";
+import { useChangePassword } from "@workspace/api-client-react/src/extra-hooks";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import QRCode from "react-qr-code";
 import {
   User, Bell, Shield, Key, LogOut, ChevronRight,
-  Camera, Globe, Smartphone, HelpCircle, Lock,
+  Camera, Smartphone, HelpCircle, Lock,
   EyeOff, Eye, Star, TrendingUp, Ship, Zap,
-  Check, Settings, MapPin, AtSign, Copy, AlertTriangle,
-  RefreshCw, X
+  Settings, MapPin, AtSign, Globe,
+  RefreshCw
 } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -36,8 +33,6 @@ const passwordSchema = z.object({
   next: z.string().min(8, "Min 8 characters"),
   confirm: z.string().min(1, "Required"),
 }).refine(d => d.next === d.confirm, { message: "Passwords don't match", path: ["confirm"] });
-
-const otpSchema = z.object({ token: z.string().length(6, "Enter 6 digits") });
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -102,24 +97,16 @@ function PwField({ label, field, show, toggle }: { label: string; field: any; sh
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-type Section = "overview" | "edit" | "password" | "2fa-setup" | "2fa-disable" | "2fa-codes";
+type Section = "overview" | "edit" | "password";
 
 export default function ProfilePage() {
   const { data: profile, isLoading, refetch } = useGetProfile();
   const updateProfile = useUpdateProfile();
-  const setupTwoFa = useTwoFaSetup();
-  const verifyTwoFa = useTwoFaVerify();
-  const disableTwoFa = useTwoFaDisable();
   const changePassword = useChangePassword();
   const { logout } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [section, setSection] = useState<Section>("overview");
-
-  // 2FA state
-  const [qrData, setQrData] = useState<{ secret: string; qrCode: string; otpauth: string } | null>(null);
-  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Password visibility
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
@@ -141,16 +128,6 @@ export default function ProfilePage() {
   const passwordForm = useForm<z.infer<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
     defaultValues: { current: "", next: "", confirm: "" },
-  });
-
-  const otpForm = useForm<z.infer<typeof otpSchema>>({
-    resolver: zodResolver(otpSchema),
-    defaultValues: { token: "" },
-  });
-
-  const disableOtpForm = useForm<z.infer<typeof otpSchema>>({
-    resolver: zodResolver(otpSchema),
-    defaultValues: { token: "" },
   });
 
   // ── handlers ──────────────────────────────────────────────────────────────────
@@ -175,47 +152,6 @@ export default function ProfilePage() {
       },
       onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
     });
-  };
-
-  const on2FaSetup = () => {
-    setupTwoFa.mutate(undefined, {
-      onSuccess: (data) => {
-        setQrData(data);
-        setSection("2fa-setup");
-      },
-      onError: (err: any) => toast({ title: "Error", description: err?.data?.error || err.message, variant: "destructive" }),
-    });
-  };
-
-  const onVerify2Fa = (data: z.infer<typeof otpSchema>) => {
-    if (!qrData) return;
-    verifyTwoFa.mutate({ secret: qrData.secret, token: data.token }, {
-      onSuccess: (res) => {
-        setRecoveryCodes(res.recoveryCodes);
-        setSection("2fa-codes");
-        refetch();
-        toast({ title: "2FA enabled!", description: "Save your recovery codes." });
-      },
-      onError: (err: any) => toast({ title: "Invalid code", description: err?.data?.error || "Try again", variant: "destructive" }),
-    });
-  };
-
-  const onDisable2Fa = (data: z.infer<typeof otpSchema>) => {
-    disableTwoFa.mutate({ token: data.token }, {
-      onSuccess: () => {
-        toast({ title: "2FA disabled" });
-        disableOtpForm.reset();
-        setSection("overview");
-        refetch();
-      },
-      onError: (err: any) => toast({ title: "Invalid code", description: err?.data?.error || "Try again", variant: "destructive" }),
-    });
-  };
-
-  const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
   };
 
   const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -327,29 +263,20 @@ export default function ProfilePage() {
               <Row
                 icon={Smartphone}
                 label="Two-Factor Authentication"
-                value={profile?.twoFactorEnabled ? "Currently enabled — tap to disable" : "Not enabled — tap to set up"}
+                value={profile?.twoFactorEnabled ? "Currently enabled" : "Not enabled — tap to set up"}
                 color={profile?.twoFactorEnabled ? "#059669" : "#d97706"}
                 badge={
                   <span style={{ fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "#ecfdf5" : "#fffbeb", color: profile?.twoFactorEnabled ? "#059669" : "#d97706", flexShrink: 0 }}>
                     {profile?.twoFactorEnabled ? "ON" : "OFF"}
                   </span>
                 }
-                onClick={() => {
-                  if (profile?.twoFactorEnabled) {
-                    disableOtpForm.reset();
-                    setSection("2fa-disable");
-                  } else {
-                    on2FaSetup();
-                  }
-                }}
+                onClick={() => setLocation("/security/2fa")}
               />
             </Card>
 
             <Card>
               <CardHeader icon={Settings} title="Preferences" color="#7c3aed" />
               <Row icon={Bell} label="Notifications" value="Alerts & activity" color="#d97706" onClick={() => toast({ title: "Coming soon" })} />
-              <Div />
-              <Row icon={Globe} label="Language" value="English (US)" color="#0891b2" onClick={() => toast({ title: "Coming soon" })} />
             </Card>
 
             <Card>
@@ -477,135 +404,6 @@ export default function ProfilePage() {
                     )} />
                     <button type="submit" disabled={changePassword.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #059669, #047857)", boxShadow: "0 4px 16px rgba(5,150,105,0.3)", opacity: changePassword.isPending ? 0.7 : 1 }}>
                       {changePassword.isPending ? "Updating…" : "Update Password"}
-                    </button>
-                  </form>
-                </Form>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* ── 2FA SETUP ── */}
-        {section === "2fa-setup" && qrData && (
-          <div>
-            <BackBtn onClick={() => setSection("overview")} />
-            <Card>
-              <CardHeader icon={Shield} title="Set Up 2FA" color="#059669" />
-              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-
-                {/* Step 1 */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700, color: "white", flexShrink: 0 }}>1</div>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>Scan this QR code with your authenticator app</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "center", padding: "20px", background: "#f8fafc", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
-                    <div style={{ background: "white", padding: "12px", borderRadius: "8px" }}>
-                      <QRCode value={qrData.otpauth} size={160} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Manual entry */}
-                <div style={{ padding: "12px 14px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-                  <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Manual Entry Code</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <code style={{ flex: 1, fontSize: "12px", color: "#0f172a", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", wordBreak: "break-all" }}>
-                      {qrData.secret}
-                    </code>
-                    <button onClick={() => { navigator.clipboard.writeText(qrData.secret); toast({ title: "Copied!" }); }} style={{ padding: "5px 10px", borderRadius: "8px", background: "#eff6ff", border: "1px solid #bfdbfe", cursor: "pointer", fontSize: "11px", fontWeight: 600, color: "#2563eb", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
-                      <Copy size={11} /> Copy
-                    </button>
-                  </div>
-                </div>
-
-                {/* Step 2 */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                    <div style={{ width: "20px", height: "20px", borderRadius: "50%", background: "#2563eb", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700, color: "white", flexShrink: 0 }}>2</div>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>Enter the 6-digit code to confirm</span>
-                  </div>
-                  <Form {...otpForm}>
-                    <form onSubmit={otpForm.handleSubmit(onVerify2Fa)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                      <FormField control={otpForm.control} name="token" render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input {...field} placeholder="000000" maxLength={6} className="tb-input h-14 text-center text-2xl tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.3em" }} />
-                          </FormControl>
-                          <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
-                        </FormItem>
-                      )} />
-                      <button type="submit" disabled={verifyTwoFa.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #059669, #047857)", boxShadow: "0 4px 16px rgba(5,150,105,0.3)", opacity: verifyTwoFa.isPending ? 0.7 : 1 }}>
-                        {verifyTwoFa.isPending ? "Verifying..." : "Enable 2FA"}
-                      </button>
-                    </form>
-                  </Form>
-                </div>
-
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* ── 2FA RECOVERY CODES ── */}
-        {section === "2fa-codes" && (
-          <div>
-            <Card>
-              <CardHeader icon={Key} title="Recovery Codes" color="#d97706" />
-              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ padding: "12px 14px", borderRadius: "12px", background: "#fffbeb", border: "1px solid #fde68a", display: "flex", gap: "10px" }}>
-                  <AlertTriangle size={16} color="#d97706" style={{ flexShrink: 0, marginTop: "2px" }} />
-                  <p style={{ margin: 0, fontSize: "12px", color: "#92400e", lineHeight: 1.5 }}>
-                    Save these codes in a safe place. Each can be used once to sign in if you lose access to your authenticator app.
-                  </p>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  {recoveryCodes.map((code, i) => (
-                    <button key={i} onClick={() => copyCode(code)} style={{ padding: "10px 12px", borderRadius: "10px", background: copiedCode === code ? "#ecfdf5" : "#f8fafc", border: `1px solid ${copiedCode === code ? "#a7f3d0" : "#e2e8f0"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
-                      <code style={{ fontSize: "11px", fontFamily: "'JetBrains Mono', monospace", color: "#0f172a", letterSpacing: "0.05em" }}>{code}</code>
-                      {copiedCode === code ? <Check size={11} color="#059669" /> : <Copy size={11} color="#94a3b8" />}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={() => { navigator.clipboard.writeText(recoveryCodes.join("\n")); toast({ title: "All codes copied!" }); }} style={{ height: "42px", borderRadius: "12px", border: "1.5px solid #e2e8f0", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#64748b", background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                  <Copy size={13} /> Copy All Codes
-                </button>
-                <button onClick={() => setSection("overview")} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #2563eb, #1d4ed8)", boxShadow: "0 4px 16px rgba(37,99,235,0.3)" }}>
-                  Done — I've saved my codes
-                </button>
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* ── 2FA DISABLE ── */}
-        {section === "2fa-disable" && (
-          <div>
-            <BackBtn onClick={() => setSection("overview")} />
-            <Card>
-              <CardHeader icon={X} title="Disable 2FA" color="#ef4444" />
-              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div style={{ padding: "12px 14px", borderRadius: "12px", background: "#fef2f2", border: "1px solid #fecaca", display: "flex", gap: "10px" }}>
-                  <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: "2px" }} />
-                  <p style={{ margin: 0, fontSize: "12px", color: "#991b1b", lineHeight: 1.5 }}>
-                    Disabling 2FA reduces your account security. Enter your authenticator code or a recovery code to confirm.
-                  </p>
-                </div>
-                <Form {...disableOtpForm}>
-                  <form onSubmit={disableOtpForm.handleSubmit(onDisable2Fa)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <FormField control={disableOtpForm.control} name="token" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                          OTP Code or Recovery Code
-                        </FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="000000 or XXXX-XXXX" className="tb-input h-14 text-center tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "16px", letterSpacing: "0.2em" }} />
-                        </FormControl>
-                        <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
-                      </FormItem>
-                    )} />
-                    <button type="submit" disabled={disableTwoFa.isPending} style={{ height: "48px", borderRadius: "14px", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: 700, color: "white", background: "linear-gradient(135deg, #ef4444, #dc2626)", boxShadow: "0 4px 16px rgba(239,68,68,0.3)", opacity: disableTwoFa.isPending ? 0.7 : 1 }}>
-                      {disableTwoFa.isPending ? "Disabling..." : "Disable 2FA"}
                     </button>
                   </form>
                 </Form>

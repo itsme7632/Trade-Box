@@ -1,0 +1,3 @@
+- [Registration atomic pattern](registration-atomic.md) — all reg fields must go in one /auth/register call; never split across register + PATCH profile.
+- [JWT_SECRET fallback pattern](jwt-secret-pattern.md) — use IIFE that throws in prod, warns in dev; never use ?? "fallback-secret" string literal.
+- [api-zod manual update rule](api-zod-manual.md) — orval codegen is not auto-run; update both openapi.yaml and lib/api-zod/src/generated/api.ts manually when adding new request fields.

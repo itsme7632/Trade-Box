@@ -9,7 +9,10 @@ import jwt from "jsonwebtoken";
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "fallback-secret";
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET env var is required in production");
+  return "dev-fallback-secret-DO-NOT-USE-IN-PROD";
+})();
 const APP_NAME = "TradeBox";
 
 function deriveKey(secret: string): Buffer {

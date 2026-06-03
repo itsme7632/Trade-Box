@@ -20,9 +20,17 @@ export const HealthCheckResponse = zod.object({
  * @summary Register a new user
  */
 export const RegisterBody = zod.object({
-  "email": zod.string(),
-  "password": zod.string(),
-  "referralCode": zod.string().nullish()
+  "email": zod.string().email(),
+  "password": zod.string().min(8),
+  "firstName": zod.string().optional(),
+  "lastName": zod.string().optional(),
+  "username": zod.string().regex(/^[a-zA-Z0-9_]+$/).optional(),
+  "country": zod.string().optional(),
+  "telegramHandle": zod.string().optional(),
+  "whatsappNumber": zod.string().optional(),
+  "referralCode": zod.string().nullish(),
+  "agreedToTerms": zod.boolean().optional(),
+  "ageConfirmed": zod.boolean().optional(),
 })
 
 

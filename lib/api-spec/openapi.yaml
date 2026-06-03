@@ -879,10 +879,29 @@ components:
       properties:
         email:
           type: string
+          format: email
         password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+          pattern: '^[a-zA-Z0-9_]+$'
+        country:
+          type: string
+        telegramHandle:
+          type: string
+        whatsappNumber:
           type: string
         referralCode:
           type: ["string", "null"]
+        agreedToTerms:
+          type: boolean
+        ageConfirmed:
+          type: boolean
 
     LoginInput:
       type: object
