@@ -2,6 +2,29 @@ import { Router } from "express";
 import { db, usersTable, supportSettingsTable, supportTicketsTable, ticketRepliesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth";
+import { z } from "zod";
+
+const SupportSettingsPatchBody = z.object({
+  telegramSupport: z.string().optional(),
+  whatsappSupport: z.string().optional(),
+  supportEmail: z.string().email().optional(),
+  telegramGroup: z.string().optional(),
+  whatsappCommunity: z.string().optional(),
+  announcementChannel: z.string().optional(),
+});
+
+const CreateTicketBody = z.object({
+  subject: z.string().min(1, "Subject is required"),
+  message: z.string().min(1, "Message is required"),
+});
+
+const UpdateTicketStatusBody = z.object({
+  status: z.enum(["open", "in_progress", "closed"]),
+});
+
+const ReplyBody = z.object({
+  message: z.string().min(1, "Message is required"),
+});
 
 const router = Router();
 
@@ -14,7 +37,9 @@ router.get("/settings", async (_req, res) => {
 });
 
 router.patch("/settings", requireAuth, requireAdmin, async (req, res) => {
-  const { telegramSupport, whatsappSupport, supportEmail, telegramGroup, whatsappCommunity, announcementChannel } = req.body;
+  const parsed = SupportSettingsPatchBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { telegramSupport, whatsappSupport, supportEmail, telegramGroup, whatsappCommunity, announcementChannel } = parsed.data;
 
   const existing = await db.select().from(supportSettingsTable).limit(1);
   if (existing.length === 0) {
@@ -68,8 +93,9 @@ router.get("/tickets", requireAuth, async (req, res) => {
 
 router.post("/tickets", requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
-  const { subject, message } = req.body;
-  if (!subject || !message) { res.status(400).json({ error: "subject and message are required" }); return; }
+  const parsed = CreateTicketBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { subject, message } = parsed.data;
 
   const [ticket] = await db.insert(supportTicketsTable).values({ userId, subject, message, status: "open" }).returning();
   res.status(201).json({ id: ticket.id, subject: ticket.subject, message: ticket.message, status: ticket.status, createdAt: ticket.createdAt.toISOString(), replies: [] });
@@ -96,8 +122,9 @@ router.post("/tickets/:id/replies", requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
   const role = (req as any).user.role;
   const ticketId = Number(req.params.id);
-  const { message } = req.body;
-  if (!message) { res.status(400).json({ error: "message is required" }); return; }
+  const replyParsed = ReplyBody.safeParse(req.body);
+  if (!replyParsed.success) { res.status(400).json({ error: replyParsed.error.flatten() }); return; }
+  const { message } = replyParsed.data;
 
   const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, ticketId)).limit(1);
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
@@ -116,8 +143,9 @@ router.post("/tickets/:id/replies", requireAuth, async (req, res) => {
 
 router.patch("/tickets/:id", requireAuth, requireAdmin, async (req, res) => {
   const ticketId = Number(req.params.id);
-  const { status } = req.body;
-  if (!status) { res.status(400).json({ error: "status is required" }); return; }
+  const parsed = UpdateTicketStatusBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  const { status } = parsed.data;
 
   const [ticket] = await db.update(supportTicketsTable).set({ status }).where(eq(supportTicketsTable.id, ticketId)).returning();
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }

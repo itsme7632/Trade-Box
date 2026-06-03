@@ -105,7 +105,7 @@ export const CreateTicketBody = zod.object({
   "message": zod.string().min(1),
 })
 
-export const LoginResponse = zod.object({
+const LoginFullResponse = zod.object({
   "token": zod.string(),
   "user": zod.object({
   "id": zod.number(),
@@ -117,6 +117,13 @@ export const LoginResponse = zod.object({
   "createdAt": zod.string()
 })
 })
+
+const LoginOtpResponse = zod.object({
+  "requiresOtp": zod.literal(true),
+  "tempToken": zod.string(),
+})
+
+export const LoginResponse = zod.union([LoginFullResponse, LoginOtpResponse])
 
 
 /**
@@ -506,9 +513,12 @@ export const GetProfileResponse = zod.object({
  * @summary Update profile settings
  */
 export const UpdateProfileBody = zod.object({
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "username": zod.string().regex(/^[a-zA-Z0-9_]+$/).nullish(),
+  "country": zod.string().nullish(),
   "telegramHandle": zod.string().nullish(),
   "whatsappNumber": zod.string().nullish(),
-  "twoFactorEnabled": zod.boolean().nullish()
 })
 
 export const UpdateProfileResponse = zod.object({

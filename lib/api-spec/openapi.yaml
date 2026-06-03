@@ -91,6 +91,35 @@ paths:
         "401":
           description: Unauthorized
 
+  /auth/check-availability:
+    post:
+      operationId: checkAvailability
+      tags: [auth]
+      summary: Check if email or username is available
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [field, value]
+              properties:
+                field:
+                  type: string
+                  enum: [email, username]
+                value:
+                  type: string
+      responses:
+        "200":
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+
   /auth/change-password:
     post:
       operationId: changePassword
@@ -1138,13 +1167,22 @@ components:
           type: string
 
     AuthResponse:
-      type: object
-      required: [token, user]
-      properties:
-        token:
-          type: string
-        user:
-          $ref: "#/components/schemas/User"
+      oneOf:
+        - type: object
+          required: [token, user]
+          properties:
+            token:
+              type: string
+            user:
+              $ref: "#/components/schemas/User"
+        - type: object
+          required: [requiresOtp, tempToken]
+          properties:
+            requiresOtp:
+              type: boolean
+              enum: [true]
+            tempToken:
+              type: string
 
     ChangePasswordInput:
       type: object
@@ -1667,12 +1705,18 @@ components:
     ProfileUpdate:
       type: object
       properties:
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
         telegramHandle:
           type: ["string", "null"]
         whatsappNumber:
           type: ["string", "null"]
-        twoFactorEnabled:
-          type: ["boolean", "null"]
 
     KycInput:
       type: object

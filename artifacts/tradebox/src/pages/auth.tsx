@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/components/auth-context";
 import { useLogin, useRegister } from "@workspace/api-client-react";
@@ -146,6 +146,8 @@ type RegData = {
   step3?: z.infer<typeof step3Schema>;
 };
 
+type AvailStatus = "idle" | "checking" | "available" | "taken";
+
 export function AuthPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [, setLocation] = useLocation();
@@ -155,6 +157,50 @@ export function AuthPage() {
   const [tempToken, setTempToken] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [emailAvail, setEmailAvail] = useState<AvailStatus>("idle");
+  const [usernameAvail, setUsernameAvail] = useState<AvailStatus>("idle");
+  const emailDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const usernameDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkEmail = useCallback((value: string) => {
+    if (emailDebounce.current) clearTimeout(emailDebounce.current);
+    const trimmed = value.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) { setEmailAvail("idle"); return; }
+    setEmailAvail("checking");
+    emailDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field: "email", value: trimmed }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEmailAvail(data.available ? "available" : "taken");
+        }
+      } catch { setEmailAvail("idle"); }
+    }, 400);
+  }, []);
+
+  const checkUsername = useCallback((value: string) => {
+    if (usernameDebounce.current) clearTimeout(usernameDebounce.current);
+    const trimmed = value.trim();
+    if (!trimmed || !/^[a-zA-Z0-9_]{3,}$/.test(trimmed)) { setUsernameAvail("idle"); return; }
+    setUsernameAvail("checking");
+    usernameDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/check-availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field: "username", value: trimmed }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsernameAvail(data.available ? "available" : "taken");
+        }
+      } catch { setUsernameAvail("idle"); }
+    }, 400);
+  }, []);
 
   const loginMutation = useLogin();
   const registerMutation = useRegister();
@@ -424,7 +470,18 @@ export function AuthPage() {
                               <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                 <Mail size={11} color="#94a3b8" /> Email Address
                               </FormLabel>
-                              <FormControl><Input placeholder="trader@example.com" className="tb-input h-11 text-sm" {...field} /></FormControl>
+                              <FormControl>
+                                <Input
+                                  placeholder="trader@example.com"
+                                  className="tb-input h-11 text-sm"
+                                  {...field}
+                                  onChange={e => { field.onChange(e); setEmailAvail("idle"); }}
+                                  onBlur={e => { field.onBlur(); checkEmail(e.target.value); }}
+                                />
+                              </FormControl>
+                              {emailAvail === "checking" && <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#64748b" }}>Checking availability…</p>}
+                              {emailAvail === "taken" && <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#dc2626" }}>Email already registered</p>}
+                              {emailAvail === "available" && <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#22c55e" }}>✓ Email is available</p>}
                               <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                             </FormItem>
                           )} />
@@ -448,7 +505,18 @@ export function AuthPage() {
                               <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                                 <User size={11} color="#94a3b8" /> Username <span style={{ color: "#cbd5e1", fontWeight: 400 }}>(optional)</span>
                               </FormLabel>
-                              <FormControl><Input placeholder="trader_john" className="tb-input h-11 text-sm" {...field} /></FormControl>
+                              <FormControl>
+                                <Input
+                                  placeholder="trader_john"
+                                  className="tb-input h-11 text-sm"
+                                  {...field}
+                                  onChange={e => { field.onChange(e); setUsernameAvail("idle"); }}
+                                  onBlur={e => { field.onBlur(); checkUsername(e.target.value); }}
+                                />
+                              </FormControl>
+                              {usernameAvail === "checking" && <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#64748b" }}>Checking availability…</p>}
+                              {usernameAvail === "taken" && <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#dc2626" }}>Username already taken</p>}
+                              {usernameAvail === "available" && <p style={{ margin: "3px 0 0", fontSize: "11px", color: "#22c55e" }}>✓ Username is available</p>}
                               <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                             </FormItem>
                           )} />

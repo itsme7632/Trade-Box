@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { signToken, requireAuth } from "../lib/auth";
-import { RegisterBody, LoginBody } from "@workspace/api-zod";
+import { RegisterBody, LoginBody, ChangePasswordBody } from "@workspace/api-zod";
 import { createDecipheriv, createHash } from "crypto";
 
 const router = Router();
@@ -170,15 +170,29 @@ router.get("/me", requireAuth, async (req, res) => {
   });
 });
 
+router.post("/check-availability", async (req, res) => {
+  const { field, value } = req.body;
+  if (!field || !value || typeof value !== "string") {
+    res.status(400).json({ error: "field and value are required" }); return;
+  }
+  if (field === "email") {
+    const rows = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, value.toLowerCase().trim())).limit(1);
+    res.json({ available: rows.length === 0 }); return;
+  }
+  if (field === "username") {
+    const rows = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, value.trim())).limit(1);
+    res.json({ available: rows.length === 0 }); return;
+  }
+  res.status(400).json({ error: "field must be email or username" });
+});
+
 router.post("/change-password", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
-  const { currentPassword, newPassword } = req.body;
-  if (!currentPassword || !newPassword) {
-    res.status(400).json({ error: "currentPassword and newPassword are required" }); return;
+  const parsed = ChangePasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid input", details: parsed.error.issues }); return;
   }
-  if (newPassword.length < 8) {
-    res.status(400).json({ error: "New password must be at least 8 characters" }); return;
-  }
+  const { currentPassword, newPassword } = parsed.data;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }

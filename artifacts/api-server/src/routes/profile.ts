@@ -65,14 +65,11 @@ router.patch("/", requireAuth, async (req, res) => {
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" }); return;
   }
-  const data = parsed.data;
-  const { firstName, lastName, username, country } = req.body as {
-    firstName?: string | null; lastName?: string | null; username?: string | null; country?: string | null;
-  };
+  const { firstName, lastName, username, country, telegramHandle, whatsappNumber } = parsed.data;
 
   const updates: Partial<typeof usersTable.$inferInsert> = {};
-  if (data.telegramHandle !== undefined) updates.telegramHandle = data.telegramHandle ?? undefined;
-  if (data.whatsappNumber !== undefined) updates.whatsappNumber = data.whatsappNumber ?? undefined;
+  if (telegramHandle !== undefined) updates.telegramHandle = telegramHandle ?? undefined;
+  if (whatsappNumber !== undefined) updates.whatsappNumber = whatsappNumber ?? undefined;
   if (firstName !== undefined) updates.firstName = firstName ?? undefined;
   if (lastName !== undefined) updates.lastName = lastName ?? undefined;
   if (country !== undefined) updates.country = country ?? undefined;
