@@ -9,8 +9,10 @@ import guildRouter from "./guild";
 import profileRouter from "./profile";
 import marketRouter from "./market";
 import adminRouter from "./admin";
+import adminControlRouter from "./admin-control";
 import twofaRouter from "./twofa";
 import supportRouter from "./support";
+import announcementsRouter from "./announcements-public";
 
 const router: IRouter = Router();
 
@@ -24,7 +26,9 @@ router.use("/tracker", trackerRouter);
 router.use("/guild", guildRouter);
 router.use("/profile", profileRouter);
 router.use("/market", marketRouter);
+router.use("/admin", adminControlRouter);
 router.use("/admin", adminRouter);
+router.use("/announcements", announcementsRouter);
 router.use("/support", supportRouter);
 
 export default router;

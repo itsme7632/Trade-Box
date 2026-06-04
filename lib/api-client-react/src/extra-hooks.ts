@@ -154,3 +154,316 @@ export function useUpdateTicketStatus() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/support/tickets"] }),
   });
 }
+
+// ── Admin Control Center Hooks ─────────────────────────────────────────────────
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  traderId: string;
+  role: string;
+  status: string;
+  kycStatus: string;
+  balance: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  totalProfits: number;
+  totalInvested: number;
+  totalCommissions: number;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  country: string | null;
+  guildCode: string;
+  referredBy: string | null;
+  registrationIp: string | null;
+  lastLoginIp: string | null;
+  twoFactorEnabled: boolean;
+  createdAt: string;
+  referralChain?: { traderId: string; guildCode: string }[];
+  investments?: any[];
+}
+
+export interface PlatformSettings {
+  id: number;
+  siteName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  supportEmail: string | null;
+  telegramLink: string | null;
+  whatsappLink: string | null;
+  registrationEnabled: boolean;
+  requireKyc: boolean;
+  referralsEnabled: boolean;
+  minDeposit: number;
+  minWithdrawal: number;
+  withdrawalFeePercent: number;
+  tier1Rate: number;
+  tier2Rate: number;
+  tier3Rate: number;
+  maintenanceMode: boolean;
+  sessionTimeoutDays: number;
+  maxLoginAttempts: number;
+  updatedAt: string;
+}
+
+export interface Announcement {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  targetAudience: string;
+  isActive: boolean;
+  scheduledAt: string | null;
+  expiresAt: string | null;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminPlan {
+  id: number;
+  title: string;
+  cargoType: string;
+  origin: string;
+  destination: string;
+  profitPercent: number;
+  riskGrade: string;
+  fundingGoal: number;
+  fundingRaised: number;
+  minInvestment: number;
+  departureDate: string;
+  arrivalDate: string;
+  transitDays: number;
+  status: string;
+  freightForwarder: string;
+  vesselName: string;
+  isFeatured: boolean;
+  isArchived: boolean;
+  investorCount: number;
+  investorVolume: number;
+  createdAt: string;
+}
+
+export interface AdminAnalytics {
+  users: { total: number; active: number; suspended: number; banned: number; registrationsToday: number };
+  kyc: { pending: number; approved: number };
+  financials: {
+    totalDeposited: number; totalWithdrawn: number; totalProfitPaid: number;
+    totalCommissionsPaid: number; depositsToday: number; withdrawalsToday: number;
+  };
+  pending: { deposits: number; withdrawals: number; kyc: number };
+  shipments: { active: number; open: number };
+}
+
+export function useAdminListUsersV2(params?: { search?: string; kycStatus?: string; status?: string; role?: string }) {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.kycStatus) query.set("kycStatus", params.kycStatus);
+  if (params?.status) query.set("status", params.status);
+  if (params?.role) query.set("role", params.role);
+  return useQuery({
+    queryKey: ["/api/admin/users", params],
+    queryFn: () => customFetch<AdminUser[]>(`/api/admin/users?${query.toString()}`),
+  });
+}
+
+export function useAdminGetUserDetail(id: number | null) {
+  return useQuery({
+    queryKey: ["/api/admin/users", id],
+    queryFn: () => customFetch<AdminUser>(`/api/admin/users/${id}`),
+    enabled: id !== null,
+  });
+}
+
+function makeUserAction(path: string) {
+  return (id: number, body?: Record<string, unknown>) =>
+    customFetch<{ success: boolean; [k: string]: unknown }>(`/api/admin/users/${id}/${path}`, {
+      method: "POST",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+}
+
+export function useAdminSuspendUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => makeUserAction("suspend")(id, { reason }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminUnsuspendUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) => makeUserAction("unsuspend")(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminBanUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => makeUserAction("ban")(id, { reason }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminResetPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, newPassword }: { id: number; newPassword: string }) =>
+      makeUserAction("reset-password")(id, { newPassword }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminForceLogout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) => makeUserAction("force-logout")(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminPromoteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) => makeUserAction("promote")(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminDemoteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) => makeUserAction("demote")(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminAddBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, amount, note }: { id: number; amount: number; note?: string }) =>
+      makeUserAction("add-balance")(id, { amount, note }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminDeductBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, amount, note }: { id: number; amount: number; note?: string }) =>
+      makeUserAction("deduct-balance")(id, { amount, note }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminAddCommission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, amount, note }: { id: number; amount: number; note?: string }) =>
+      makeUserAction("add-commission")(id, { amount, note }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+  });
+}
+
+export function useAdminGetSettings() {
+  return useQuery({
+    queryKey: ["/api/admin/settings"],
+    queryFn: () => customFetch<PlatformSettings>("/api/admin/settings"),
+  });
+}
+
+export function useAdminUpdateSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<PlatformSettings>) =>
+      customFetch<PlatformSettings>("/api/admin/settings", { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/settings"] }),
+  });
+}
+
+export function useAdminGetPlans() {
+  return useQuery({
+    queryKey: ["/api/admin/plans"],
+    queryFn: () => customFetch<AdminPlan[]>("/api/admin/plans"),
+  });
+}
+
+export function useAdminTogglePlanFeatured() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      customFetch<{ success: boolean; isFeatured: boolean }>(`/api/admin/plans/${id}/toggle-featured`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/plans"] }),
+  });
+}
+
+export function useAdminActivatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      customFetch<{ success: boolean }>(`/api/admin/plans/${id}/activate`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/plans"] }),
+  });
+}
+
+export function useAdminDeactivatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      customFetch<{ success: boolean }>(`/api/admin/plans/${id}/deactivate`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/plans"] }),
+  });
+}
+
+export function useAdminGetAnnouncements() {
+  return useQuery({
+    queryKey: ["/api/admin/announcements"],
+    queryFn: () => customFetch<Announcement[]>("/api/admin/announcements"),
+  });
+}
+
+export function useAdminCreateAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Omit<Announcement, "id" | "createdBy" | "createdAt" | "updatedAt">) =>
+      customFetch<Announcement>("/api/admin/announcements", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/announcements"] }),
+  });
+}
+
+export function useAdminUpdateAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<Announcement>) =>
+      customFetch<Announcement>(`/api/admin/announcements/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/announcements"] }),
+  });
+}
+
+export function useAdminDeleteAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      customFetch<{ success: boolean }>(`/api/admin/announcements/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/announcements"] }),
+  });
+}
+
+export function useAdminAnalytics() {
+  return useQuery({
+    queryKey: ["/api/admin/analytics"],
+    queryFn: () => customFetch<AdminAnalytics>("/api/admin/analytics"),
+    refetchInterval: 30000,
+  });
+}
+
+export function usePublicAnnouncements() {
+  return useQuery({
+    queryKey: ["/api/announcements"],
+    queryFn: () => customFetch<{ id: number; title: string; message: string; type: string; targetAudience: string; expiresAt: string | null }[]>("/api/announcements"),
+    refetchInterval: 60000,
+  });
+}

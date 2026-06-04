@@ -7,3 +7,5 @@ export * from "./crypto_wallets";
 export * from "./port_activity";
 export * from "./support_settings";
 export * from "./support_tickets";
+export * from "./platform_settings";
+export * from "./announcements";

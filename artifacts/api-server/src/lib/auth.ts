@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
   if (process.env.NODE_ENV === "production") {
@@ -9,19 +11,19 @@ const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
   return "dev-fallback-secret-DO-NOT-USE-IN-PROD";
 })();
 
-export function signToken(userId: number, role: string): string {
-  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: "30d" });
+export function signToken(userId: number, role: string, sessionVersion: number = 0): string {
+  return jwt.sign({ userId, role, sessionVersion }, JWT_SECRET, { expiresIn: "30d" });
 }
 
-export function verifyToken(token: string): { userId: number; role: string } | null {
+export function verifyToken(token: string): { userId: number; role: string; sessionVersion: number } | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as { userId: number; role: string };
+    return jwt.verify(token, JWT_SECRET) as { userId: number; role: string; sessionVersion: number };
   } catch {
     return null;
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
@@ -33,7 +35,31 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     res.status(401).json({ error: "Invalid token" });
     return;
   }
-  (req as Request & { user: { userId: number; role: string } }).user = payload;
+
+  const [user] = await db
+    .select({ id: usersTable.id, role: usersTable.role, status: usersTable.status, sessionVersion: usersTable.sessionVersion })
+    .from(usersTable)
+    .where(eq(usersTable.id, payload.userId))
+    .limit(1);
+
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  if (user.status === "banned") {
+    res.status(403).json({ error: "Your account has been banned. Contact support." });
+    return;
+  }
+  if (user.status === "suspended") {
+    res.status(403).json({ error: "Your account is suspended. Contact support." });
+    return;
+  }
+  if ((user.sessionVersion ?? 0) !== (payload.sessionVersion ?? 0)) {
+    res.status(401).json({ error: "Session expired. Please log in again." });
+    return;
+  }
+
+  (req as Request & { user: { userId: number; role: string } }).user = { userId: payload.userId, role: user.role };
   next();
 }
 

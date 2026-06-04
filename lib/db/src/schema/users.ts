@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, numeric, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, boolean, pgEnum, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   guildCode: text("guild_code").notNull().unique(),
   referredBy: text("referred_by"),
   role: userRoleEnum("role").notNull().default("user"),
+  status: text("status").notNull().default("active"),
   kycStatus: kycStatusEnum("kyc_status").notNull().default("none"),
   balance: numeric("balance", { precision: 18, scale: 2 }).notNull().default("0"),
   totalDeposited: numeric("total_deposited", { precision: 18, scale: 2 }).notNull().default("0"),
@@ -31,6 +32,9 @@ export const usersTable = pgTable("users", {
   walletAddressEth: text("wallet_address_eth"),
   walletAddressUsdt: text("wallet_address_usdt"),
   walletAddressBnb: text("wallet_address_bnb"),
+  registrationIp: text("registration_ip"),
+  lastLoginIp: text("last_login_ip"),
+  sessionVersion: integer("session_version").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

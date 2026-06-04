@@ -3,3 +3,6 @@
 - [TradeBox JWT secret pattern](tradebox-jwt.md) — JWT_SECRET must never have a hardcoded fallback; use IIFE that throws in prod, warns in dev — applies in both auth.ts and twofa.ts.
 - [TradeBox commission system](commission-system.md) — shared library at `lib/commission.ts`; tier stored in tx.notes ("1"/"2"/"3"); both admin deliver and cron use processGuildCommissions(); parseTier() has fallback to description field for legacy records.
 - [express-rate-limit IPv6 keyGenerator](rate-limiter-ipv6.md) — custom keyGenerator must call ipKeyGenerator() helper and set validate.xForwardedForHeader:false to suppress ERR_ERL_KEY_GEN_IPV6 ValidationError (non-fatal but noisy).
+- [TradeBox session invalidation pattern](tradebox-session-version.md) — sessionVersion int on usersTable; embedded in JWT; requireAuth does a DB lookup per request to validate status + version; increment on ban/force-logout/reset-password.
+- [TradeBox admin router ordering](tradebox-admin-routers.md) — adminControlRouter must be registered BEFORE adminRouter in routes/index.ts so enhanced GET /users routes take priority over legacy ones.
+- [TradeBox admin hooks split](tradebox-admin-hooks.md) — generated orval hooks from src/generated/api.ts; hand-written admin control hooks in extra-hooks.ts; mix both import paths in admin page components.

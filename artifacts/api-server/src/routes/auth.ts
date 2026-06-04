@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { signToken, requireAuth } from "../lib/auth";
 import { RegisterBody, LoginBody, ChangePasswordBody } from "@workspace/api-zod";
 import { createDecipheriv, createHash } from "crypto";
@@ -80,7 +80,6 @@ router.post("/register", registerLimiter, async (req, res) => {
 
   let referredBy: string | null = null;
   if (referralCode) {
-    // Validate format — must look like a guild code
     if (!/^TB-GUILD-[A-Z0-9]{5}$/.test(referralCode)) {
       res.status(400).json({ error: "Invalid referral code format" });
       return;
@@ -90,15 +89,10 @@ router.post("/register", registerLimiter, async (req, res) => {
       res.status(400).json({ error: "Referral code not found" });
       return;
     }
-    // Prevent self-referral (same email across accounts)
     if (referrer.email.toLowerCase() === email.toLowerCase()) {
       res.status(400).json({ error: "You cannot refer yourself" });
       return;
     }
-    // Prevent referral chains deeper than 3 levels:
-    // Count how many hops from the referrer up to the root. If >= 3, adding a
-    // 4th level (this new user) would exceed the commission depth and silently
-    // generate no earnings for the deepest level, so we block it proactively.
     let depth = 0;
     let current: typeof referrer | null = referrer;
     while (current?.referredBy && depth < 4) {
@@ -106,12 +100,7 @@ router.post("/register", registerLimiter, async (req, res) => {
       current = parent ?? null;
       depth++;
     }
-    if (depth >= 3) {
-      // Allow registration but don't attach referral (chain too deep for commissions)
-      referredBy = null;
-    } else {
-      referredBy = referralCode;
-    }
+    referredBy = depth >= 3 ? null : referralCode;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -140,11 +129,14 @@ router.post("/register", registerLimiter, async (req, res) => {
     whatsappNumber: whatsappNumber ?? null,
     role: "user",
     kycStatus: "none",
+    status: "active",
+    registrationIp: ip,
+    sessionVersion: 0,
   }).returning();
 
   audit({ event: "register_success", userId: user.id, traderId: user.traderId, ip });
 
-  const token = signToken(user.id, user.role);
+  const token = signToken(user.id, user.role, user.sessionVersion ?? 0);
   res.status(201).json({
     token,
     user: {
@@ -175,12 +167,23 @@ router.post("/login", loginLimiter, async (req, res) => {
     return;
   }
 
+  if (user.status === "banned") {
+    res.status(403).json({ error: "Your account has been banned. Contact support." });
+    return;
+  }
+  if (user.status === "suspended") {
+    res.status(403).json({ error: "Your account is suspended. Contact support." });
+    return;
+  }
+
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     audit({ event: "login_failure", ip, userId: user.id, traderId: user.traderId, detail: { reason: "wrong_password" } });
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
+
+  await db.update(usersTable).set({ lastLoginIp: ip }).where(eq(usersTable.id, user.id));
 
   if (user.twoFactorEnabled && user.twoFactorSecret) {
     audit({ event: "login_success", ip, userId: user.id, traderId: user.traderId, detail: { requires_2fa: true } });
@@ -190,7 +193,7 @@ router.post("/login", loginLimiter, async (req, res) => {
   }
 
   audit({ event: "login_success", ip, userId: user.id, traderId: user.traderId, detail: { requires_2fa: false } });
-  const token = signToken(user.id, user.role);
+  const token = signToken(user.id, user.role, user.sessionVersion ?? 0);
   res.json({
     token,
     user: {

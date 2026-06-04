@@ -8,12 +8,17 @@ import {
 import {
   useGetSupportSettings, useUpdateSupportSettings,
   useGetTickets, useReplyTicket, useUpdateTicketStatus,
+  useAdminAnalytics,
   type SupportTicket,
 } from "@workspace/api-client-react/src/extra-hooks";
+import { AdminUsersV2 } from "./admin-users";
+import { AdminSettings } from "./admin-settings";
+import { AdminPlans } from "./admin-plans";
+import { AdminAnnouncements } from "./admin-announcements";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ShieldAlert, Users, Anchor, Wallet, FileCheck, Check, X, Search, Plus, MessageSquare, Settings, Clock, RefreshCw, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { ShieldAlert, Users, Anchor, Wallet, FileCheck, Check, X, Search, Plus, MessageSquare, Settings, Clock, RefreshCw, CheckCircle, ChevronDown, ChevronUp, BarChart3, Megaphone, SlidersHorizontal } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,41 +72,86 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-8">
-          <TabsList className="bg-white border border-[#EEF2F8] w-full justify-start p-1 h-auto overflow-x-auto shadow-sm">
-            <TabsTrigger value="overview" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Overview</TabsTrigger>
-            <TabsTrigger value="deposits" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">
-              Deposits {stats?.pendingDeposits ? `(${stats.pendingDeposits})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="withdrawals" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">
-              Withdrawals {stats?.pendingWithdrawals ? `(${stats.pendingWithdrawals})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="kyc" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">
-              KYC {stats?.pendingKyc ? `(${stats.pendingKyc})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="shipments" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Shipments</TabsTrigger>
-            <TabsTrigger value="users" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Users</TabsTrigger>
-            <TabsTrigger value="tickets" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">
-              Tickets {openTicketCount > 0 ? `(${openTicketCount})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="support-settings" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0]">Support Config</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="bg-white border border-[#EEF2F8] w-max min-w-full justify-start p-1 h-auto shadow-sm flex-nowrap">
+              <TabsTrigger value="overview" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                <BarChart3 className="h-3 w-3 mr-1.5" />Analytics
+              </TabsTrigger>
+              <TabsTrigger value="deposits" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                Deposits {stats?.pendingDeposits ? `(${stats.pendingDeposits})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="withdrawals" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                Withdrawals {stats?.pendingWithdrawals ? `(${stats.pendingWithdrawals})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="kyc" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                KYC {stats?.pendingKyc ? `(${stats.pendingKyc})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="shipments" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">Shipments</TabsTrigger>
+              <TabsTrigger value="users-v2" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                <Users className="h-3 w-3 mr-1.5" />Users
+              </TabsTrigger>
+              <TabsTrigger value="plans" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                <Anchor className="h-3 w-3 mr-1.5" />Plans
+              </TabsTrigger>
+              <TabsTrigger value="announcements" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                <Megaphone className="h-3 w-3 mr-1.5" />Announcements
+              </TabsTrigger>
+              <TabsTrigger value="tickets" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                Tickets {openTicketCount > 0 ? `(${openTicketCount})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="support-settings" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">Support Config</TabsTrigger>
+              <TabsTrigger value="platform-settings" className="py-2.5 px-4 font-mono uppercase text-xs data-[state=active]:bg-[#EF4444] data-[state=active]:text-white text-[#6A82A0] whitespace-nowrap">
+                <SlidersHorizontal className="h-3 w-3 mr-1.5" />Settings
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent value="overview">
-             <div className="bg-white p-8 rounded-xl border border-[#EEF2F8] text-center mt-6 text-[#6A82A0] font-mono shadow-sm">
-               Select a tab above to manage platform entities.
-             </div>
-          </TabsContent>
-
+          <TabsContent value="overview"><AdminAnalyticsTab /></TabsContent>
           <TabsContent value="deposits"><AdminDeposits /></TabsContent>
           <TabsContent value="withdrawals"><AdminWithdrawals /></TabsContent>
           <TabsContent value="kyc"><AdminKyc /></TabsContent>
           <TabsContent value="shipments"><AdminShipments /></TabsContent>
-          <TabsContent value="users"><AdminUsers /></TabsContent>
+          <TabsContent value="users-v2"><AdminUsersV2 /></TabsContent>
+          <TabsContent value="plans"><AdminPlans /></TabsContent>
+          <TabsContent value="announcements"><AdminAnnouncements /></TabsContent>
           <TabsContent value="tickets"><AdminTickets /></TabsContent>
           <TabsContent value="support-settings"><AdminSupportSettings /></TabsContent>
+          <TabsContent value="platform-settings"><AdminSettings /></TabsContent>
 
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+function AdminAnalyticsTab() {
+  const { data: a } = useAdminAnalytics();
+
+  if (!a) return (
+    <div className="mt-6 bg-white p-8 rounded-xl border border-[#EEF2F8] text-center text-[#6A82A0] font-mono text-sm shadow-sm">Loading analytics…</div>
+  );
+
+  const cards = [
+    { label: "Total Users", value: a.users.total, sub: `+${a.users.registrationsToday} today`, color: "#0066FF" },
+    { label: "Active Users", value: a.users.active, sub: `${a.users.suspended} suspended · ${a.users.banned} banned`, color: "#22C55E" },
+    { label: "KYC Pending", value: a.kyc.pending, sub: `${a.kyc.approved} approved`, color: "#F59E0B" },
+    { label: "Pending Actions", value: a.pending.deposits + a.pending.withdrawals + a.pending.kyc, sub: `${a.pending.deposits} dep · ${a.pending.withdrawals} wd · ${a.pending.kyc} kyc`, color: "#EF4444" },
+    { label: "Total Deposited", value: `${a.financials.totalDeposited.toLocaleString()} USDT`, sub: `+${a.financials.depositsToday.toLocaleString()} today`, color: "#22C55E" },
+    { label: "Total Withdrawn", value: `${a.financials.totalWithdrawn.toLocaleString()} USDT`, sub: `−${a.financials.withdrawalsToday.toLocaleString()} today`, color: "#EF4444" },
+    { label: "Profit Paid Out", value: `${a.financials.totalProfitPaid.toLocaleString()} USDT`, sub: "All-time delivery profits", color: "#0066FF" },
+    { label: "Commissions Paid", value: `${a.financials.totalCommissionsPaid.toLocaleString()} USDT`, sub: "All-time guild commissions", color: "#7C3AED" },
+    { label: "Active Shipments", value: a.shipments.active, sub: `${a.shipments.open} open for investment`, color: "#0066FF" },
+  ];
+
+  return (
+    <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {cards.map(c => (
+        <div key={c.label} className="bg-white rounded-xl border border-[#EEF2F8] p-4 shadow-sm" style={{ borderLeftWidth: 4, borderLeftColor: c.color }}>
+          <p className="text-[10px] text-[#6A82A0] font-mono uppercase mb-1">{c.label}</p>
+          <p className="font-bold font-mono text-xl text-[#0F1923]">{c.value}</p>
+          <p className="text-[10px] text-[#6A82A0] mt-1 font-mono">{c.sub}</p>
+        </div>
+      ))}
     </div>
   );
 }
