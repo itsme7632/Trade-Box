@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db, usersTable, transactionsTable, cryptoWalletsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { SubmitDepositBody, SubmitWithdrawalBody } from "@workspace/api-zod";
+import { audit, getClientIp } from "../lib/audit";
 
 const router = Router();
 
@@ -27,7 +29,6 @@ router.get("/balance", requireAuth, async (req, res) => {
     return;
   }
 
-  // Calculate total invested from active investments
   const { investmentsTable } = await import("@workspace/db");
   const { eq: eqFn } = await import("drizzle-orm");
   const invs = await db.select().from(investmentsTable).where(eqFn(investmentsTable.userId, userId));
@@ -90,6 +91,7 @@ router.post("/deposit", requireAuth, async (req, res) => {
 
 router.post("/withdraw", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
+  const ip = getClientIp(req);
   const parsed = SubmitWithdrawalBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -99,11 +101,19 @@ router.post("/withdraw", requireAuth, async (req, res) => {
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   const fee = amount * 0.01;
-  const total = amount + fee;
-  if (Number(user.balance) < total) {
+  const totalReserved = amount + fee;
+
+  if (Number(user.balance) < totalReserved) {
     res.status(400).json({ error: "Insufficient balance (including 1% fee)" });
     return;
   }
+
+  // Immediately reserve (deduct) the full amount + fee from available balance.
+  // Balance is restored only if admin rejects the withdrawal.
+  // totalWithdrawn is updated only when admin approves (marks cleared).
+  await db.update(usersTable).set({
+    balance: sql`${usersTable.balance} - ${totalReserved}`,
+  }).where(eq(usersTable.id, userId));
 
   const [tx] = await db.insert(transactionsTable).values({
     userId,
@@ -114,12 +124,22 @@ router.post("/withdraw", requireAuth, async (req, res) => {
     coin: coin.toUpperCase(),
     walletAddress,
     txid: null,
+    notes: String(fee),
   }).returning();
+
+  const [updatedUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  audit({
+    event: "withdrawal_created",
+    userId,
+    traderId: updatedUser.traderId,
+    ip,
+    detail: { amount, fee, coin, walletAddress, txId: tx.id, newBalance: Number(updatedUser.balance) },
+  });
 
   res.status(201).json(formatLedger(tx));
 });
 
-router.get("/crypto-addresses", async (_req, res) => {
+router.get("/crypto-addresses", requireAuth, async (_req, res) => {
   const wallets = await db.select().from(cryptoWalletsTable);
   res.json(wallets.map((w) => ({
     coin: w.coin,

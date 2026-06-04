@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db, usersTable, transactionsTable, kycTable, shipmentsTable, investmentsTable, cryptoWalletsTable, supportSettingsTable } from "@workspace/db";
-import { eq, and, like } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { AdminRejectDepositBody, AdminProcessWithdrawalBody, AdminRejectKycBody, AdminCreditProfitBody, AdminCreateShipmentBody, AdminUpdateShipmentBody, AdminUpdateCryptoWalletsBody } from "@workspace/api-zod";
+import { audit, getClientIp } from "../lib/audit";
 
 const SupportSettingsPatchBody = z.object({
   telegramSupport: z.string().optional(),
@@ -13,6 +14,10 @@ const SupportSettingsPatchBody = z.object({
   telegramGroup: z.string().optional(),
   whatsappCommunity: z.string().optional(),
   announcementChannel: z.string().optional(),
+});
+
+const AdminRejectWithdrawalBody = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
 });
 
 const router = Router();
@@ -47,8 +52,14 @@ router.get("/stats", async (_req, res) => {
 });
 
 // DEPOSITS
-router.get("/deposits", async (_req, res) => {
-  const txs = await db.select().from(transactionsTable).where(eq(transactionsTable.type, "deposit"));
+router.get("/deposits", async (req, res) => {
+  const { status } = req.query as Record<string, string>;
+  let txs = await db.select().from(transactionsTable).where(eq(transactionsTable.type, "deposit"));
+
+  if (status && status !== "all") {
+    txs = txs.filter(t => t.status === status);
+  }
+
   const results = [];
   for (const tx of txs) {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
@@ -62,7 +73,7 @@ router.get("/deposits", async (_req, res) => {
         amount: Number(tx.amount),
         txid: tx.txid ?? "",
         proofUrl: tx.proofUrl ?? null,
-        status: tx.status === "reviewing" ? "reviewing" : tx.status === "cleared" ? "cleared" : "rejected",
+        status: tx.status,
         notes: tx.notes ?? null,
         createdAt: tx.createdAt.toISOString(),
       });
@@ -72,6 +83,8 @@ router.get("/deposits", async (_req, res) => {
 });
 
 router.post("/deposits/:id/approve", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const id = parseInt(req.params.id);
   const [tx] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
   if (!tx) {
@@ -87,6 +100,9 @@ router.post("/deposits/:id/approve", async (req, res) => {
 
   const [updated] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
+
+  audit({ event: "deposit_approved", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, amount } });
+
   res.json({
     id: updated.id,
     userId: updated.userId,
@@ -103,6 +119,8 @@ router.post("/deposits/:id/approve", async (req, res) => {
 });
 
 router.post("/deposits/:id/reject", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const id = parseInt(req.params.id);
   const parsed = AdminRejectDepositBody.safeParse(req.body);
   if (!parsed.success) {
@@ -112,6 +130,9 @@ router.post("/deposits/:id/reject", async (req, res) => {
   await db.update(transactionsTable).set({ status: "rejected", notes: parsed.data.reason }).where(eq(transactionsTable.id, id));
   const [updated] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId)).limit(1);
+
+  audit({ event: "deposit_rejected", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, reason: parsed.data.reason } });
+
   res.json({
     id: updated.id,
     userId: updated.userId,
@@ -134,14 +155,16 @@ router.get("/withdrawals", async (_req, res) => {
   for (const tx of txs) {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
     if (user) {
+      const principal = Math.abs(Number(tx.amount));
+      const fee = tx.notes ? Number(tx.notes) : principal * 0.01;
       results.push({
         id: tx.id,
         userId: tx.userId,
         traderId: user.traderId,
         email: user.email,
         coin: tx.coin ?? "USDT",
-        amount: Math.abs(Number(tx.amount)),
-        fee: Math.abs(Number(tx.amount)) * 0.01,
+        amount: principal,
+        fee,
         walletAddress: tx.walletAddress ?? "",
         status: tx.status,
         txid: tx.txid ?? null,
@@ -152,7 +175,10 @@ router.get("/withdrawals", async (_req, res) => {
   res.json(results);
 });
 
+// Process (approve) withdrawal — balance was already deducted at submission; only update totalWithdrawn and mark cleared.
 router.post("/withdrawals/:id/process", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const id = parseInt(req.params.id);
   const parsed = AdminProcessWithdrawalBody.safeParse(req.body);
   if (!parsed.success) {
@@ -164,26 +190,87 @@ router.post("/withdrawals/:id/process", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const amount = Math.abs(Number(tx.amount));
+  if (tx.status !== "in_transit") {
+    res.status(400).json({ error: "Withdrawal is not in a processable state" });
+    return;
+  }
+  const principal = Math.abs(Number(tx.amount));
+
+  // Balance was reserved at submission. Now just mark cleared and record in totalWithdrawn.
   await db.update(transactionsTable).set({ status: "cleared", txid: parsed.data.txid }).where(eq(transactionsTable.id, id));
   await db.update(usersTable).set({
-    balance: sql`${usersTable.balance} - ${amount}`,
-    totalWithdrawn: sql`${usersTable.totalWithdrawn} + ${amount}`,
+    totalWithdrawn: sql`${usersTable.totalWithdrawn} + ${principal}`,
   }).where(eq(usersTable.id, tx.userId));
 
   const [updated] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
+  const fee = tx.notes ? Number(tx.notes) : principal * 0.01;
+
+  audit({ event: "withdrawal_approved", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, principal, fee, txid: parsed.data.txid } });
+
   res.json({
     id: updated.id,
     userId: updated.userId,
     traderId: user.traderId,
     email: user.email,
     coin: updated.coin ?? "USDT",
-    amount,
-    fee: amount * 0.01,
+    amount: principal,
+    fee,
     walletAddress: updated.walletAddress ?? "",
     status: "cleared",
     txid: updated.txid ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+// Reject withdrawal — restore the reserved balance (principal + fee) back to the user.
+router.post("/withdrawals/:id/reject", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
+  const id = parseInt(req.params.id);
+  const parsed = AdminRejectWithdrawalBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const [tx] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
+  if (!tx) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (tx.status !== "in_transit") {
+    res.status(400).json({ error: "Withdrawal is not in a rejectable state" });
+    return;
+  }
+  const principal = Math.abs(Number(tx.amount));
+  const fee = tx.notes ? Number(tx.notes) : principal * 0.01;
+  const totalToRestore = principal + fee;
+
+  // Restore the reserved amount (principal + fee) back to user's available balance.
+  await db.update(transactionsTable)
+    .set({ status: "rejected", notes: parsed.data.reason })
+    .where(eq(transactionsTable.id, id));
+  await db.update(usersTable).set({
+    balance: sql`${usersTable.balance} + ${totalToRestore}`,
+  }).where(eq(usersTable.id, tx.userId));
+
+  const [updated] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, id)).limit(1);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
+
+  audit({ event: "withdrawal_rejected", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, principal, fee, totalRestored: totalToRestore, reason: parsed.data.reason } });
+
+  res.json({
+    id: updated.id,
+    userId: updated.userId,
+    traderId: user.traderId,
+    email: user.email,
+    coin: updated.coin ?? "USDT",
+    amount: principal,
+    fee,
+    walletAddress: updated.walletAddress ?? "",
+    status: "rejected",
+    txid: updated.txid ?? null,
+    notes: updated.notes ?? null,
     createdAt: updated.createdAt.toISOString(),
   });
 });
@@ -239,6 +326,8 @@ router.get("/users/:id", async (req, res) => {
 });
 
 router.post("/users/:id/credit-profit", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const id = parseInt(req.params.id);
   const parsed = AdminCreditProfitBody.safeParse(req.body);
   if (!parsed.success) {
@@ -260,6 +349,9 @@ router.post("/users/:id/credit-profit", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
   const invs = await db.select().from(investmentsTable).where(eq(investmentsTable.userId, id));
   const totalInvested = invs.reduce((acc, i) => acc + Number(i.amount), 0);
+
+  audit({ event: "admin_credit_profit", userId: adminId, ip, detail: { targetUser: user.traderId, amount, description } });
+
   res.json({
     id: user.id,
     email: user.email,
@@ -276,8 +368,14 @@ router.post("/users/:id/credit-profit", async (req, res) => {
 });
 
 // KYC
-router.get("/kyc", async (_req, res) => {
-  const kycs = await db.select().from(kycTable).where(eq(kycTable.status, "pending"));
+router.get("/kyc", async (req, res) => {
+  const { status } = req.query as Record<string, string>;
+  let kycs = await db.select().from(kycTable);
+  if (!status || status === "pending") {
+    kycs = kycs.filter(k => k.status === "pending");
+  } else if (status !== "all") {
+    kycs = kycs.filter(k => k.status === status);
+  }
   const results = [];
   for (const k of kycs) {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, k.userId)).limit(1);
@@ -300,10 +398,15 @@ router.get("/kyc", async (_req, res) => {
 });
 
 router.post("/kyc/:id/approve", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const id = parseInt(req.params.id);
   const [kyc] = await db.update(kycTable).set({ status: "approved", reviewedAt: new Date() }).where(eq(kycTable.id, id)).returning();
   await db.update(usersTable).set({ kycStatus: "approved" }).where(eq(usersTable.id, kyc.userId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, kyc.userId)).limit(1);
+
+  audit({ event: "kyc_approved", userId: adminId, ip, detail: { kycId: id, targetUser: user.traderId } });
+
   res.json({
     id: kyc.id, userId: kyc.userId, traderId: user.traderId, email: user.email,
     idDocumentUrl: kyc.idDocumentUrl, selfieUrl: kyc.selfieUrl, proofOfAddressUrl: kyc.proofOfAddressUrl ?? null,
@@ -312,6 +415,8 @@ router.post("/kyc/:id/approve", async (req, res) => {
 });
 
 router.post("/kyc/:id/reject", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const id = parseInt(req.params.id);
   const parsed = AdminRejectKycBody.safeParse(req.body);
   if (!parsed.success) {
@@ -321,6 +426,9 @@ router.post("/kyc/:id/reject", async (req, res) => {
   const [kyc] = await db.update(kycTable).set({ status: "rejected", rejectionReason: parsed.data.reason, reviewedAt: new Date() }).where(eq(kycTable.id, id)).returning();
   await db.update(usersTable).set({ kycStatus: "rejected" }).where(eq(usersTable.id, kyc.userId));
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, kyc.userId)).limit(1);
+
+  audit({ event: "kyc_rejected", userId: adminId, ip, detail: { kycId: id, targetUser: user.traderId, reason: parsed.data.reason } });
+
   res.json({
     id: kyc.id, userId: kyc.userId, traderId: user.traderId, email: user.email,
     idDocumentUrl: kyc.idDocumentUrl, selfieUrl: kyc.selfieUrl, proofOfAddressUrl: kyc.proofOfAddressUrl ?? null,
@@ -545,8 +653,7 @@ router.patch("/crypto-wallets", async (req, res) => {
   res.json(wallets.map(w => ({ coin: w.coin, address: w.address, network: w.network })));
 });
 
-// ── Admin support settings (canonical admin path) ────────────────────────────
-
+// SUPPORT SETTINGS (admin path)
 router.get("/support-settings", async (_req, res) => {
   const [settings] = await db.select().from(supportSettingsTable).limit(1);
   res.json(settings ?? {

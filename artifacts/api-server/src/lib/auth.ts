@@ -1,7 +1,13 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "fallback-secret";
+const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET environment variable is required in production. Set it before starting the server.");
+  }
+  console.warn("[WARN] JWT_SECRET not set — using insecure fallback. Set JWT_SECRET in production!");
+  return "dev-fallback-secret-DO-NOT-USE-IN-PROD";
+})();
 
 export function signToken(userId: number, role: string): string {
   return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: "30d" });

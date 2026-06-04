@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { signToken, requireAuth } from "../lib/auth";
 import { RegisterBody, LoginBody, ChangePasswordBody } from "@workspace/api-zod";
 import { createDecipheriv, createHash } from "crypto";
+import { audit, getClientIp } from "../lib/audit";
+import { loginLimiter, registerLimiter, passwordLimiter } from "../lib/rate-limiters";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
@@ -39,9 +41,11 @@ function decrypt2faSecret(data: string): string {
   return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
 }
 
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
+  const ip = getClientIp(req);
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
+    audit({ event: "register_failure", ip, detail: { reason: "validation_error" } });
     res.status(400).json({ error: "Invalid input", details: parsed.error.issues });
     return;
   }
@@ -53,12 +57,14 @@ router.post("/register", async (req, res) => {
   } = parsed.data;
 
   if (!agreedToTerms || !ageConfirmed) {
+    audit({ event: "register_failure", ip, detail: { reason: "terms_not_accepted" } });
     res.status(400).json({ error: "You must agree to the Terms and confirm you are 18 or older" });
     return;
   }
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (existing.length > 0) {
+    audit({ event: "register_failure", ip, detail: { reason: "email_taken", email } });
     res.status(400).json({ error: "Email already registered" });
     return;
   }
@@ -66,6 +72,7 @@ router.post("/register", async (req, res) => {
   if (username) {
     const usernameCheck = await db.select().from(usersTable).where(eq(usersTable.username, username)).limit(1);
     if (usernameCheck.length > 0) {
+      audit({ event: "register_failure", ip, detail: { reason: "username_taken", username } });
       res.status(400).json({ error: "Username already taken" });
       return;
     }
@@ -105,6 +112,8 @@ router.post("/register", async (req, res) => {
     kycStatus: "none",
   }).returning();
 
+  audit({ event: "register_success", userId: user.id, traderId: user.traderId, ip });
+
   const token = signToken(user.id, user.role);
   res.status(201).json({
     token,
@@ -120,7 +129,8 @@ router.post("/register", async (req, res) => {
   });
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
+  const ip = getClientIp(req);
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
@@ -129,17 +139,27 @@ router.post("/login", async (req, res) => {
   const { email, password } = parsed.data;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-  if (!user) { res.status(401).json({ error: "Invalid credentials" }); return; }
+  if (!user) {
+    audit({ event: "login_failure", ip, detail: { reason: "user_not_found", email } });
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) { res.status(401).json({ error: "Invalid credentials" }); return; }
+  if (!valid) {
+    audit({ event: "login_failure", ip, userId: user.id, traderId: user.traderId, detail: { reason: "wrong_password" } });
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
 
   if (user.twoFactorEnabled && user.twoFactorSecret) {
+    audit({ event: "login_success", ip, userId: user.id, traderId: user.traderId, detail: { requires_2fa: true } });
     const tempToken = jwt.sign({ userId: user.id }, JWT_SECRET + ":2fa", { expiresIn: "5m" });
     res.json({ requiresOtp: true, tempToken });
     return;
   }
 
+  audit({ event: "login_success", ip, userId: user.id, traderId: user.traderId, detail: { requires_2fa: false } });
   const token = signToken(user.id, user.role);
   res.json({
     token,
@@ -186,8 +206,9 @@ router.post("/check-availability", async (req, res) => {
   res.status(400).json({ error: "field must be email or username" });
 });
 
-router.post("/change-password", requireAuth, async (req, res) => {
+router.post("/change-password", requireAuth, passwordLimiter, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
+  const ip = getClientIp(req);
   const parsed = ChangePasswordBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input", details: parsed.error.issues }); return;
@@ -198,10 +219,14 @@ router.post("/change-password", requireAuth, async (req, res) => {
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
+  if (!valid) {
+    audit({ event: "password_change_failure", userId, traderId: user.traderId, ip, detail: { reason: "wrong_current_password" } });
+    res.status(400).json({ error: "Current password is incorrect" }); return;
+  }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, userId));
+  audit({ event: "password_change_success", userId, traderId: user.traderId, ip });
   res.json({ success: true });
 });
 

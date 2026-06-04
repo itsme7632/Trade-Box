@@ -530,3 +530,7 @@ function HelpPageInner({ initialView = "main" }: { initialView?: View }) {
     </div>
   );
 }
+
+export default function HelpPage() {
+  return <HelpPageInner />;
+}

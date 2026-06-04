@@ -5,6 +5,8 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypt
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, signToken } from "../lib/auth";
+import { audit, getClientIp } from "../lib/audit";
+import { twoFaLimiter } from "../lib/rate-limiters";
 import jwt from "jsonwebtoken";
 
 const router = Router();
@@ -64,17 +66,24 @@ router.post("/setup", requireAuth, async (req, res) => {
   res.json({ secret, otpauth, qrCode });
 });
 
-router.post("/verify", requireAuth, async (req, res) => {
+router.post("/verify", requireAuth, twoFaLimiter, async (req, res) => {
   const userId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const { secret, token } = req.body;
 
   if (!secret || !token) {
     res.status(400).json({ error: "secret and token are required" }); return;
   }
 
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
   const verifyResult = await totpVerify({ token: String(token), secret });
   const valid = verifyResult?.valid === true;
-  if (!valid) { res.status(400).json({ error: "Invalid OTP code" }); return; }
+  if (!valid) {
+    audit({ event: "2fa_login_failure", userId, traderId: user.traderId, ip, detail: { stage: "verify_setup" } });
+    res.status(400).json({ error: "Invalid OTP code" }); return;
+  }
 
   const encryptedSecret = encrypt(secret);
   const recoveryCodes = generateRecoveryCodes();
@@ -84,11 +93,13 @@ router.post("/verify", requireAuth, async (req, res) => {
     .set({ twoFactorEnabled: true, twoFactorSecret: encryptedSecret, twoFactorRecoveryCodes: encryptedCodes })
     .where(eq(usersTable.id, userId));
 
+  audit({ event: "2fa_enabled", userId, traderId: user.traderId, ip });
   res.json({ success: true, recoveryCodes });
 });
 
-router.post("/disable", requireAuth, async (req, res) => {
+router.post("/disable", requireAuth, twoFaLimiter, async (req, res) => {
   const userId = (req as any).user.userId;
+  const ip = getClientIp(req);
   const { token } = req.body;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
@@ -118,16 +129,21 @@ router.post("/disable", requireAuth, async (req, res) => {
     } catch {}
   }
 
-  if (!valid) { res.status(400).json({ error: "Invalid OTP or recovery code" }); return; }
+  if (!valid) {
+    audit({ event: "2fa_login_failure", userId, traderId: user.traderId, ip, detail: { stage: "disable" } });
+    res.status(400).json({ error: "Invalid OTP or recovery code" }); return;
+  }
 
   await db.update(usersTable)
     .set({ twoFactorEnabled: false, twoFactorSecret: null, twoFactorRecoveryCodes: null })
     .where(eq(usersTable.id, userId));
 
+  audit({ event: "2fa_disabled", userId, traderId: user.traderId, ip, detail: { used_recovery_code: usedRecoveryCode } });
   res.json({ success: true, usedRecoveryCode });
 });
 
-router.post("/complete", async (req, res) => {
+router.post("/complete", twoFaLimiter, async (req, res) => {
+  const ip = getClientIp(req);
   const { tempToken, token } = req.body;
   if (!tempToken || !token) { res.status(400).json({ error: "tempToken and token are required" }); return; }
 
@@ -164,8 +180,12 @@ router.post("/complete", async (req, res) => {
     } catch {}
   }
 
-  if (!valid) { res.status(400).json({ error: "Invalid OTP code" }); return; }
+  if (!valid) {
+    audit({ event: "2fa_login_failure", userId, traderId: user.traderId, ip, detail: { stage: "complete" } });
+    res.status(400).json({ error: "Invalid OTP code" }); return;
+  }
 
+  audit({ event: "2fa_login_complete", userId, traderId: user.traderId, ip });
   const fullToken = signToken(user.id, user.role);
   res.json({
     token: fullToken,

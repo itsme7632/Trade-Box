@@ -6,6 +6,31 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+const isDev = process.env.NODE_ENV !== "production";
+
+function buildCorsOrigins(): string[] | boolean {
+  const raw = process.env.ALLOWED_ORIGINS;
+  if (raw) {
+    return raw.split(",").map((o) => o.trim()).filter(Boolean);
+  }
+  if (isDev) {
+    return true;
+  }
+  logger.warn("ALLOWED_ORIGINS is not set — defaulting to same-origin only. Set ALLOWED_ORIGINS in production.");
+  return false;
+}
+
+const allowedOrigins = buildCorsOrigins();
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
+);
+
 app.use(
   pinoHttp({
     logger,
@@ -25,7 +50,7 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

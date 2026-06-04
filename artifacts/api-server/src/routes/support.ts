@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, usersTable, supportSettingsTable, supportTicketsTable, ticketRepliesTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth";
+import { supportTicketLimiter } from "../lib/rate-limiters";
 import { z } from "zod";
 
 const SupportSettingsPatchBody = z.object({
@@ -91,7 +92,7 @@ router.get("/tickets", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post("/tickets", requireAuth, async (req, res) => {
+router.post("/tickets", requireAuth, supportTicketLimiter, async (req, res) => {
   const userId = (req as any).user.userId;
   const parsed = CreateTicketBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
