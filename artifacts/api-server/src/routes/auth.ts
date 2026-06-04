@@ -80,8 +80,38 @@ router.post("/register", registerLimiter, async (req, res) => {
 
   let referredBy: string | null = null;
   if (referralCode) {
-    const referrer = await db.select().from(usersTable).where(eq(usersTable.guildCode, referralCode)).limit(1);
-    if (referrer.length > 0) referredBy = referralCode;
+    // Validate format — must look like a guild code
+    if (!/^TB-GUILD-[A-Z0-9]{5}$/.test(referralCode)) {
+      res.status(400).json({ error: "Invalid referral code format" });
+      return;
+    }
+    const [referrer] = await db.select().from(usersTable).where(eq(usersTable.guildCode, referralCode)).limit(1);
+    if (!referrer) {
+      res.status(400).json({ error: "Referral code not found" });
+      return;
+    }
+    // Prevent self-referral (same email across accounts)
+    if (referrer.email.toLowerCase() === email.toLowerCase()) {
+      res.status(400).json({ error: "You cannot refer yourself" });
+      return;
+    }
+    // Prevent referral chains deeper than 3 levels:
+    // Count how many hops from the referrer up to the root. If >= 3, adding a
+    // 4th level (this new user) would exceed the commission depth and silently
+    // generate no earnings for the deepest level, so we block it proactively.
+    let depth = 0;
+    let current: typeof referrer | null = referrer;
+    while (current?.referredBy && depth < 4) {
+      const [parent] = await db.select().from(usersTable).where(eq(usersTable.guildCode, current.referredBy)).limit(1);
+      current = parent ?? null;
+      depth++;
+    }
+    if (depth >= 3) {
+      // Allow registration but don't attach referral (chain too deep for commissions)
+      referredBy = null;
+    } else {
+      referredBy = referralCode;
+    }
   }
 
   const passwordHash = await bcrypt.hash(password, 12);

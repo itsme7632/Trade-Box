@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { AdminRejectDepositBody, AdminProcessWithdrawalBody, AdminRejectKycBody, AdminCreditProfitBody, AdminCreateShipmentBody, AdminUpdateShipmentBody, AdminUpdateCryptoWalletsBody } from "@workspace/api-zod";
 import { audit, getClientIp } from "../lib/audit";
+import { processGuildCommissions, parseTier } from "../lib/commission";
 
 const SupportSettingsPatchBody = z.object({
   telegramSupport: z.string().optional(),
@@ -286,13 +287,20 @@ router.get("/users", async (req, res) => {
   if (kycStatus && kycStatus !== "all") {
     users = users.filter(u => u.kycStatus === kycStatus);
   }
+  // Bulk-load all investments once to avoid N+1 per user
+  const allInvs = await db.select().from(investmentsTable);
+  const investedByUser = new Map<number, number>();
+  for (const inv of allInvs) {
+    investedByUser.set(inv.userId, (investedByUser.get(inv.userId) ?? 0) + Number(inv.amount));
+  }
+
   res.json(users.map(u => ({
     id: u.id,
     email: u.email,
     traderId: u.traderId,
     balance: Number(u.balance),
     totalDeposited: Number(u.totalDeposited),
-    totalInvested: 0,
+    totalInvested: Math.round((investedByUser.get(u.id) ?? 0) * 100) / 100,
     kycStatus: u.kycStatus,
     role: u.role,
     guildCode: u.guildCode ?? null,
@@ -533,10 +541,15 @@ router.patch("/shipments/:id", async (req, res) => {
 });
 
 router.post("/shipments/:id/deliver", async (req, res) => {
+  const adminId = (req as any).user.userId;
   const id = parseInt(req.params.id);
   const [shipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
   if (!shipment) {
     res.status(404).json({ error: "Shipment not found" });
+    return;
+  }
+  if (shipment.status === "delivered") {
+    res.status(400).json({ error: "Shipment already delivered" });
     return;
   }
 
@@ -544,6 +557,8 @@ router.post("/shipments/:id/deliver", async (req, res) => {
 
   const investments = await db.select().from(investmentsTable)
     .where(and(eq(investmentsTable.shipmentId, id), eq(investmentsTable.status, "active")));
+
+  const commissionSummary: { investorTraderId: string; commissions: Awaited<ReturnType<typeof processGuildCommissions>> }[] = [];
 
   for (const inv of investments) {
     const profit = Number(inv.expectedProfit);
@@ -569,35 +584,17 @@ router.post("/shipments/:id/deliver", async (req, res) => {
       shipmentId: id,
     });
 
-    // Guild commissions
+    // Guild commissions — delegated to shared commission library (stores tier in notes, relatedUserId, shipmentId)
     const [investor] = await db.select().from(usersTable).where(eq(usersTable.id, inv.userId)).limit(1);
-    if (investor.referredBy) {
-      const [referrer1] = await db.select().from(usersTable).where(eq(usersTable.guildCode, investor.referredBy)).limit(1);
-      if (referrer1) {
-        const comm1 = profit * 0.07;
-        await db.update(usersTable).set({ balance: sql`${usersTable.balance} + ${comm1}` }).where(eq(usersTable.id, referrer1.id));
-        await db.insert(transactionsTable).values({ userId: referrer1.id, type: "guild_commission", amount: String(comm1), status: "cleared", description: `Tier 1 commission from ${investor.traderId}` });
-
-        if (referrer1.referredBy) {
-          const [referrer2] = await db.select().from(usersTable).where(eq(usersTable.guildCode, referrer1.referredBy)).limit(1);
-          if (referrer2) {
-            const comm2 = profit * 0.02;
-            await db.update(usersTable).set({ balance: sql`${usersTable.balance} + ${comm2}` }).where(eq(usersTable.id, referrer2.id));
-            await db.insert(transactionsTable).values({ userId: referrer2.id, type: "guild_commission", amount: String(comm2), status: "cleared", description: `Tier 2 commission from ${investor.traderId}` });
-
-            if (referrer2.referredBy) {
-              const [referrer3] = await db.select().from(usersTable).where(eq(usersTable.guildCode, referrer2.referredBy)).limit(1);
-              if (referrer3) {
-                const comm3 = profit * 0.01;
-                await db.update(usersTable).set({ balance: sql`${usersTable.balance} + ${comm3}` }).where(eq(usersTable.id, referrer3.id));
-                await db.insert(transactionsTable).values({ userId: referrer3.id, type: "guild_commission", amount: String(comm3), status: "cleared", description: `Tier 3 commission from ${investor.traderId}` });
-              }
-            }
-          }
-        }
-      }
-    }
+    const commResults = await processGuildCommissions(inv.userId, investor.traderId, profit, id, shipment.title, adminId);
+    commissionSummary.push({ investorTraderId: investor.traderId, commissions: commResults });
   }
+
+  audit({
+    event: "shipment_delivered",
+    userId: adminId,
+    detail: { shipmentId: id, title: shipment.title, investorCount: investments.length, commissionSummary },
+  });
 
   const [updated] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
   res.json({
@@ -651,6 +648,248 @@ router.patch("/crypto-wallets", async (req, res) => {
   }
   const wallets = await db.select().from(cryptoWalletsTable);
   res.json(wallets.map(w => ({ coin: w.coin, address: w.address, network: w.network })));
+});
+
+// GUILD / REFERRAL ADMIN ROUTES
+
+// GET /admin/guild/commissions — full commission audit trail
+router.get("/guild/commissions", async (req, res) => {
+  const { userId: filterUserId } = req.query as Record<string, string>;
+
+  let txs = await db.select().from(transactionsTable).where(eq(transactionsTable.type, "guild_commission"));
+  if (filterUserId) {
+    const uid = parseInt(filterUserId);
+    txs = txs.filter(t => t.userId === uid);
+  }
+
+  const results = [];
+  for (const t of txs) {
+    const [recipient] = await db.select().from(usersTable).where(eq(usersTable.id, t.userId)).limit(1);
+    let investorTraderId: string | null = null;
+    if (t.relatedUserId) {
+      const [investor] = await db.select().from(usersTable).where(eq(usersTable.id, t.relatedUserId)).limit(1);
+      investorTraderId = investor?.traderId ?? null;
+    }
+    results.push({
+      id: t.id,
+      recipientId: t.userId,
+      recipientTraderId: recipient?.traderId ?? null,
+      recipientEmail: recipient?.email ?? null,
+      investorId: t.relatedUserId ?? null,
+      investorTraderId,
+      tier: parseTier(t.notes, t.description),
+      amount: Number(t.amount),
+      status: t.status,
+      description: t.description ?? null,
+      shipmentId: t.shipmentId ?? null,
+      createdAt: t.createdAt.toISOString(),
+    });
+  }
+  res.json(results);
+});
+
+// GET /admin/guild/stats — network-wide guild statistics
+router.get("/guild/stats", async (_req, res) => {
+  const allUsers = await db.select().from(usersTable);
+  const allInvs = await db.select().from(investmentsTable);
+  const allCommTxs = await db.select().from(transactionsTable).where(eq(transactionsTable.type, "guild_commission"));
+
+  const withReferral = allUsers.filter(u => u.referredBy !== null && u.role === "user");
+  const totalUsers = allUsers.filter(u => u.role === "user").length;
+  const totalReferrers = allUsers.filter(u =>
+    allUsers.some(other => other.referredBy === u.guildCode)
+  ).length;
+
+  const clearedComm = allCommTxs.filter(t => t.status === "cleared");
+  const totalCommissionsPaid = clearedComm.reduce((acc, t) => acc + Number(t.amount), 0);
+
+  const commByTier = { "1": 0, "2": 0, "3": 0 };
+  for (const t of clearedComm) {
+    const tier = parseTier(t.notes, t.description);
+    if (tier === 1) commByTier["1"] += Number(t.amount);
+    else if (tier === 2) commByTier["2"] += Number(t.amount);
+    else if (tier === 3) commByTier["3"] += Number(t.amount);
+  }
+
+  // Top 10 earners by commission received
+  const earningsByUser = new Map<number, number>();
+  for (const t of clearedComm) {
+    earningsByUser.set(t.userId, (earningsByUser.get(t.userId) ?? 0) + Number(t.amount));
+  }
+  const topEarners = [...earningsByUser.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([uid, earned]) => {
+      const user = allUsers.find(u => u.id === uid);
+      return { traderId: user?.traderId ?? "?", email: user?.email ?? "?", earned: Math.round(earned * 100) / 100 };
+    });
+
+  // Top 10 referrers by referral count
+  const referralCountByUser = new Map<string, number>();
+  for (const u of withReferral) {
+    if (u.referredBy) {
+      referralCountByUser.set(u.referredBy, (referralCountByUser.get(u.referredBy) ?? 0) + 1);
+    }
+  }
+  const topReferrers = [...referralCountByUser.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([guildCode, count]) => {
+      const user = allUsers.find(u => u.guildCode === guildCode);
+      return { traderId: user?.traderId ?? "?", guildCode, referralCount: count };
+    });
+
+  res.json({
+    totalUsers,
+    totalWithReferral: withReferral.length,
+    referralConversionRate: totalUsers > 0 ? Math.round((withReferral.length / totalUsers) * 10000) / 100 : 0,
+    totalReferrers,
+    totalCommissionsPaid: Math.round(totalCommissionsPaid * 100) / 100,
+    commissionsByTier: {
+      tier1: { total: Math.round(commByTier["1"] * 100) / 100, count: clearedComm.filter(t => parseTier(t.notes, t.description) === 1).length },
+      tier2: { total: Math.round(commByTier["2"] * 100) / 100, count: clearedComm.filter(t => parseTier(t.notes, t.description) === 2).length },
+      tier3: { total: Math.round(commByTier["3"] * 100) / 100, count: clearedComm.filter(t => parseTier(t.notes, t.description) === 3).length },
+    },
+    topEarners,
+    topReferrers,
+  });
+});
+
+// POST /admin/test/setup-referral-chain — create test users A→B→C→D with investments and commissions
+// Only available in non-production environments
+router.post("/test/setup-referral-chain", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(403).json({ error: "Test endpoint disabled in production" });
+    return;
+  }
+
+  const bcrypt = await import("bcryptjs");
+  const hash = await bcrypt.hash("TestPass123!", 12);
+
+  function guildCode(suffix: string) { return `TB-GUILD-TEST${suffix}`; }
+  function traderId(suffix: string) { return `TB-TEST${suffix}`; }
+
+  const chain: Array<{ label: string; email: string; traderId: string; guildCode: string; referredBy: string | null }> = [
+    { label: "A", email: "chain-a@tradebox.test", traderId: traderId("A"), guildCode: guildCode("A"), referredBy: null },
+    { label: "B", email: "chain-b@tradebox.test", traderId: traderId("B"), guildCode: guildCode("B"), referredBy: guildCode("A") },
+    { label: "C", email: "chain-c@tradebox.test", traderId: traderId("C"), guildCode: guildCode("C"), referredBy: guildCode("B") },
+    { label: "D", email: "chain-d@tradebox.test", traderId: traderId("D"), guildCode: guildCode("D"), referredBy: guildCode("C") },
+  ];
+
+  const createdUsers: Record<string, typeof usersTable.$inferSelect> = {};
+
+  for (const entry of chain) {
+    const existing = await db.select().from(usersTable).where(eq(usersTable.email, entry.email)).limit(1);
+    if (existing.length > 0) {
+      await db.delete(usersTable).where(eq(usersTable.email, entry.email));
+    }
+    const [user] = await db.insert(usersTable).values({
+      email: entry.email,
+      passwordHash: hash,
+      traderId: entry.traderId,
+      guildCode: entry.guildCode,
+      referredBy: entry.referredBy,
+      role: "user",
+      kycStatus: "none",
+    }).returning();
+    createdUsers[entry.label] = user;
+  }
+
+  // Give user D $1,000 balance and create a shipment
+  const userD = createdUsers["D"];
+  await db.update(usersTable).set({ balance: "1000", totalDeposited: "1000" }).where(eq(usersTable.id, userD.id));
+
+  // Create a test shipment
+  const dep = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const arr = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000);
+  const [shipment] = await db.insert(shipmentsTable).values({
+    title: "Test Commission Shipment A→D",
+    cargoType: "electronics",
+    origin: "Shanghai, CN",
+    destination: "Rotterdam, NL",
+    profitPercent: "10",
+    riskGrade: "B",
+    fundingGoal: "1000",
+    fundingRaised: "0",
+    minInvestment: "100",
+    departureDate: dep,
+    arrivalDate: arr,
+    transitDays: 6,
+    freightForwarder: "Test Forwarder",
+    vesselName: "TEST VESSEL",
+    status: "in_transit",
+  }).returning();
+
+  // D invests $1,000
+  const principal = 1000;
+  const profitPct = 10;
+  const expectedProfit = Math.round(principal * profitPct / 100 * 100) / 100;
+  const [investment] = await db.insert(investmentsTable).values({
+    userId: userD.id,
+    shipmentId: shipment.id,
+    amount: String(principal),
+    profitPercent: String(profitPct),
+    expectedProfit: String(expectedProfit),
+    status: "active",
+  }).returning();
+
+  await db.update(shipmentsTable).set({ fundingRaised: String(principal) }).where(eq(shipmentsTable.id, shipment.id));
+  await db.update(usersTable).set({ balance: "0" }).where(eq(usersTable.id, userD.id));
+
+  // Deliver the shipment (this triggers guild commissions)
+  await db.update(shipmentsTable).set({ status: "delivered" }).where(eq(shipmentsTable.id, shipment.id));
+  await db.update(investmentsTable).set({
+    status: "delivered",
+    actualProfit: String(expectedProfit),
+    deliveredAt: new Date(),
+  }).where(eq(investmentsTable.id, investment.id));
+
+  const total = principal + expectedProfit;
+  await db.update(usersTable).set({
+    balance: sql`${usersTable.balance} + ${total}`,
+    totalProfits: sql`${usersTable.totalProfits} + ${expectedProfit}`,
+  }).where(eq(usersTable.id, userD.id));
+
+  await db.insert(transactionsTable).values({
+    userId: userD.id,
+    type: "delivery_profit",
+    amount: String(expectedProfit),
+    status: "cleared",
+    description: `Delivery profit: ${shipment.title}`,
+    shipmentId: shipment.id,
+  });
+
+  // Process guild commissions
+  const commResults = await processGuildCommissions(
+    userD.id, userD.traderId, expectedProfit, shipment.id, shipment.title, "test"
+  );
+
+  // Fetch final balances
+  const finalUsers: Record<string, { traderId: string; balance: number; earned: number }> = {};
+  for (const [label, u] of Object.entries(createdUsers)) {
+    const [fresh] = await db.select().from(usersTable).where(eq(usersTable.id, u.id)).limit(1);
+    const commTxs = await db.select().from(transactionsTable).where(
+      and(eq(transactionsTable.userId, u.id), eq(transactionsTable.type, "guild_commission"))
+    );
+    const earned = commTxs.filter(t => t.status === "cleared").reduce((acc, t) => acc + Number(t.amount), 0);
+    finalUsers[label] = { traderId: fresh.traderId, balance: Number(fresh.balance), earned };
+  }
+
+  res.json({
+    chain: "A → B → C → D",
+    shipmentId: shipment.id,
+    investmentPrincipal: principal,
+    investmentProfit: expectedProfit,
+    commissionRates: { tier1: "7%", tier2: "2%", tier3: "1%" },
+    commissionsGenerated: commResults,
+    userBalances: finalUsers,
+    expected: {
+      A_earns: `${(profitPct / 100 * 7).toFixed(2)}% of profit = $${(expectedProfit * 0.07).toFixed(2)}`,
+      B_earns: `${(profitPct / 100 * 2).toFixed(2)}% of profit = $${(expectedProfit * 0.02).toFixed(2)}`,
+      C_earns: `${(profitPct / 100 * 1).toFixed(2)}% of profit = $${(expectedProfit * 0.01).toFixed(2)}`,
+      D_earns: `profit = $${expectedProfit.toFixed(2)} returned to balance`,
+    },
+  });
 });
 
 // SUPPORT SETTINGS (admin path)

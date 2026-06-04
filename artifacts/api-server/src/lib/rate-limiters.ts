@@ -1,4 +1,4 @@
-import { rateLimit } from "express-rate-limit";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -11,11 +11,12 @@ function makeLimit(windowMs: number, max: number, message: string) {
     legacyHeaders: false,
     keyGenerator: (req) => {
       const forwarded = req.headers["x-forwarded-for"];
-      const ip = typeof forwarded === "string"
+      const rawIp = typeof forwarded === "string"
         ? forwarded.split(",")[0].trim()
         : req.ip ?? "unknown";
-      return ip;
+      return ipKeyGenerator(rawIp);
     },
+    validate: { xForwardedForHeader: false },
   });
 }
 

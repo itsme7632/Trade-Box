@@ -1,3 +1,5 @@
 - [TradeBox API/Zod codegen pattern](tradebox-codegen.md) — orval codegen is run via `pnpm orval` but generated files can also be hand-edited; new schemas go in `lib/api-zod/src/generated/api.ts` and spec in `lib/api-spec/openapi.yaml`.
 - [otplib v13 import pattern](otplib-v13.md) — no `authenticator` named export in v13; use `import { generateSecret, generate, verify } from "otplib"` with async API.
 - [TradeBox JWT secret pattern](tradebox-jwt.md) — JWT_SECRET must never have a hardcoded fallback; use IIFE that throws in prod, warns in dev — applies in both auth.ts and twofa.ts.
+- [TradeBox commission system](commission-system.md) — shared library at `lib/commission.ts`; tier stored in tx.notes ("1"/"2"/"3"); both admin deliver and cron use processGuildCommissions(); parseTier() has fallback to description field for legacy records.
+- [express-rate-limit IPv6 keyGenerator](rate-limiter-ipv6.md) — custom keyGenerator must call ipKeyGenerator() helper and set validate.xForwardedForHeader:false to suppress ERR_ERL_KEY_GEN_IPV6 ValidationError (non-fatal but noisy).
