@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useTrackerPositions } from "@/hooks/use-socket";
+import { computeShipmentState } from "@/lib/shipment-state";
 
 function S({ h = 80 }: { h?: number }) {
   return <div className="shimmer" style={{ height: h, borderRadius: 14 }} />;
@@ -14,8 +15,8 @@ function S({ h = 80 }: { h?: number }) {
 
 const cargoColors: Record<string, string> = {
   electronics: "#2563eb", cocoa: "#92400e", coffee: "#78350f",
-  lithium: "#059669", textiles: "#7c3aed", pharmaceuticals: "#db2777",
-  pharma: "#db2777", agricultural: "#16a34a", minerals: "#d97706", steel: "#475569",
+  lithium: "#059669", textiles: "#7c3aed", pharmaceuticals: "#db2677",
+  pharma: "#db2677", agricultural: "#16a34a", minerals: "#d97706", steel: "#475569",
 };
 
 const cargoEmoji: Record<string, string> = {
@@ -24,32 +25,15 @@ const cargoEmoji: Record<string, string> = {
   pharma: "💊", steel: "⚙️",
 };
 
-const STAGES = [
-  { label: "Booked",    threshold: 0   },
-  { label: "Loaded",    threshold: 5   },
-  { label: "Departed",  threshold: 12  },
-  { label: "At Sea",    threshold: 18  },
-  { label: "Customs",   threshold: 75  },
-  { label: "Arrived",   threshold: 90  },
-  { label: "Delivered", threshold: 100 },
-];
-
-function getStageIdx(pct: number) {
-  let i = 0;
-  for (let j = 0; j < STAGES.length; j++) { if (pct >= STAGES[j].threshold) i = j; }
-  return i;
-}
-
-function getStatusLabel(pct: number) { return STAGES[getStageIdx(pct)].label; }
-
-function statusBadge(pct: number, overdue: boolean) {
-  if (overdue) return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca", label: "Overdue" };
-  if (pct >= 100) return { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "Delivered" };
-  if (pct >= 90)  return { color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", label: "Arrived" };
-  if (pct >= 75)  return { color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", label: "Customs" };
-  if (pct >= 18)  return { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "At Sea" };
-  if (pct >= 12)  return { color: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", label: "Departed" };
-  return                  { color: "#64748b", bg: "#f1f5f9", border: "#e2e8f0", label: "Booked" };
+function stageBadge(stageLabel: string, overdue: boolean) {
+  if (overdue)               return { color: "#dc2626", bg: "#fef2f2", border: "#fecaca",  label: "Overdue"  };
+  if (stageLabel === "Delivered") return { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", label: "Delivered" };
+  if (stageLabel === "Arrived")   return { color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", label: "Arrived"   };
+  if (stageLabel === "Customs")   return { color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", label: "Customs"   };
+  if (stageLabel === "At Sea")    return { color: "#d97706", bg: "#fffbeb", border: "#fde68a", label: "At Sea"    };
+  if (stageLabel === "Departed")  return { color: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", label: "Departed"  };
+  if (stageLabel === "Loaded")    return { color: "#64748b", bg: "#f1f5f9", border: "#e2e8f0", label: "Loaded"    };
+  return                           { color: "#64748b", bg: "#f1f5f9", border: "#e2e8f0", label: "Booked"    };
 }
 
 export default function Tracker() {
@@ -60,14 +44,23 @@ export default function Tracker() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [, navigate] = useLocation();
 
-  const merged = shipments?.map(s => {
-    const live = livePositions.find(p => p.id === s.id);
-    return live ? { ...s, progressPercent: live.progressPercent ?? s.progressPercent } : s;
-  }) ?? [];
-  const list = merged.length ? merged : (shipments ?? []);
+  // Enrich each shipment with its state — single source of truth
+  const list = (shipments ?? []).map(s => {
+    const raw = s as typeof s & { dbStatus?: string; departureDate?: string; arrivalDate?: string };
+    const dbStatus = raw.dbStatus ?? "open";
+    const depDate = raw.departureDate ? parseISO(raw.departureDate) : null;
+    const arrDate = raw.arrivalDate ? parseISO(raw.arrivalDate) : null;
+    const state = computeShipmentState(dbStatus, depDate, arrDate, s.origin, s.destination);
 
-  const atSea    = list.filter(s => { const p = s.progressPercent ?? 0; return p > 0 && p < 100; }).length;
-  const delayed  = list.filter(s => (s.etaDays ?? 99) <= 0).length;
+    // Live socket matches by SHIPMENT ID (not investment ID)
+    const live = livePositions.find(p => p.id === s.shipmentId);
+    const pct = live && state.inTransit ? Math.min(100, live.progressPercent ?? state.progress) : state.progress;
+
+    return { ...s, state, pct, depDate, arrDate, dbStatus };
+  });
+
+  const atSea    = list.filter(s => s.state.inTransit).length;
+  const delayed  = list.filter(s => s.arrDate && new Date() > s.arrDate && s.dbStatus !== "delivered").length;
   const onTime   = atSea > 0 ? Math.round(((atSea - delayed) / atSea) * 100) : 100;
   const ports    = new Set(activities?.map(a => a.portName)).size;
 
@@ -102,10 +95,10 @@ export default function Tracker() {
         {/* KPI strip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "14px" }}>
           {[
-            { label: "At Sea",    value: atSea,        color: "#2563eb", bg: "#eff6ff",                                     icon: Ship         },
-            { label: "Ports",     value: ports,        color: "#7c3aed", bg: "#f5f3ff",                                     icon: MapPin       },
-            { label: "On-Time",   value: `${onTime}%`, color: "#059669", bg: "#ecfdf5",                                     icon: TrendingUp   },
-            { label: "Delayed",   value: delayed,      color: delayed > 0 ? "#dc2626" : "#94a3b8",
+            { label: "At Sea",  value: atSea,        color: "#2563eb", bg: "#eff6ff", icon: Ship         },
+            { label: "Ports",   value: ports,        color: "#7c3aed", bg: "#f5f3ff", icon: MapPin       },
+            { label: "On-Time", value: `${onTime}%`, color: "#059669", bg: "#ecfdf5", icon: TrendingUp   },
+            { label: "Delayed", value: delayed,      color: delayed > 0 ? "#dc2626" : "#94a3b8",
               bg: delayed > 0 ? "#fef2f2" : "#f8fafc", icon: AlertTriangle },
           ].map((s, i) => (
             <div key={i} style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "14px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
@@ -155,16 +148,18 @@ export default function Tracker() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
             {list.map(s => {
-              const pct      = Math.min(100, Math.max(0, s.progressPercent ?? 0));
               const color    = cargoColors[s.cargoType] || "#2563eb";
               const emoji    = cargoEmoji[s.cargoType] || "📦";
-              const overdue  = (s.etaDays ?? 99) <= 0;
-              const isLive   = livePositions.some(p => p.id === s.id);
-              const badge    = statusBadge(pct, overdue);
-              const eta      = s.etaDays != null
-                ? s.etaDays <= 0 ? "Overdue"
-                : s.etaDays === 1 ? "Tomorrow"
-                : `${s.etaDays}d left`
+              const overdue  = s.arrDate != null && new Date() > s.arrDate && s.dbStatus !== "delivered";
+              const isLive   = livePositions.some(p => p.id === s.shipmentId);
+              const badge    = stageBadge(s.state.stageLabel, overdue);
+              const pct      = s.pct;
+
+              const eta = s.state.inTransit
+                ? (s.arrDate && new Date() > s.arrDate ? "Overdue"
+                  : (s as any).etaDays === 1 ? "Tomorrow"
+                  : (s as any).etaDays != null ? `${(s as any).etaDays}d left`
+                  : null)
                 : null;
 
               return (
@@ -190,7 +185,6 @@ export default function Tracker() {
                     (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
                   }}
                 >
-                  {/* Top accent bar */}
                   <div style={{ height: "3px", background: overdue ? "#dc2626" : color }} />
 
                   <div style={{ padding: "12px 14px 12px" }}>
@@ -208,7 +202,7 @@ export default function Tracker() {
                             <span style={{ padding: "2px 6px", borderRadius: "20px", fontSize: "9px", fontWeight: 700, color: "#059669", background: "#ecfdf5", fontFamily: "'JetBrains Mono', monospace" }}>● LIVE</span>
                           )}
                           {eta && (
-                            <span style={{ padding: "2px 7px", borderRadius: "20px", fontSize: "9px", fontWeight: 600, color: overdue ? "#dc2626" : s.etaDays! <= 3 ? "#d97706" : "#64748b", background: overdue ? "#fef2f2" : s.etaDays! <= 3 ? "#fffbeb" : "#f8fafc", fontFamily: "'JetBrains Mono', monospace" }}>
+                            <span style={{ padding: "2px 7px", borderRadius: "20px", fontSize: "9px", fontWeight: 600, color: overdue ? "#dc2626" : (s as any).etaDays <= 3 ? "#d97706" : "#64748b", background: overdue ? "#fef2f2" : (s as any).etaDays <= 3 ? "#fffbeb" : "#f8fafc", fontFamily: "'JetBrains Mono', monospace" }}>
                               {eta}
                             </span>
                           )}
@@ -232,7 +226,7 @@ export default function Tracker() {
                       <span style={{ fontSize: "11px", fontWeight: 700, color: "#0f172a", fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>{Math.round(pct)}%</span>
                     </div>
 
-                    {/* Progress bar + ship marker */}
+                    {/* Progress bar */}
                     <div style={{ marginBottom: "10px" }}>
                       <div style={{ height: "5px", borderRadius: "999px", background: "#f1f5f9", overflow: "hidden", marginBottom: "4px" }}>
                         <div style={{ width: `${pct}%`, height: "100%", borderRadius: "999px", background: overdue ? "#dc2626" : color, transition: "width 1s ease" }} />

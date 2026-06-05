@@ -7,13 +7,14 @@ import {
 } from "lucide-react";
 import { format, parseISO, addDays } from "date-fns";
 import { useTrackerPositions } from "@/hooks/use-socket";
+import { computeShipmentState, TIMELINE } from "@/lib/shipment-state";
 
 // ─── constants ──────────────────────────────────────────────────────────────
 
 const cargoColors: Record<string, string> = {
   electronics: "#2563eb", cocoa: "#92400e", coffee: "#78350f",
-  lithium: "#059669", textiles: "#7c3aed", pharmaceuticals: "#db2777",
-  pharma: "#db2777", agricultural: "#16a34a", minerals: "#d97706", steel: "#475569",
+  lithium: "#059669", textiles: "#7c3aed", pharmaceuticals: "#db2677",
+  pharma: "#db2677", agricultural: "#16a34a", minerals: "#d97706", steel: "#475569",
 };
 
 const cargoEmoji: Record<string, string> = {
@@ -21,74 +22,6 @@ const cargoEmoji: Record<string, string> = {
   minerals: "⛏️", textiles: "🧵", lithium: "🔋", pharmaceuticals: "💊",
   pharma: "💊", steel: "⚙️",
 };
-
-const TIMELINE = [
-  { key: "booked",    label: "Booked",    desc: "Shipment booking confirmed",                threshold: 0   },
-  { key: "loaded",    label: "Loaded",    desc: "Container loaded at origin port",            threshold: 5   },
-  { key: "departed",  label: "Departed",  desc: "Vessel departed origin port",                threshold: 12  },
-  { key: "at_sea",   label: "At Sea",    desc: "Vessel navigating open waters",               threshold: 18  },
-  { key: "customs",   label: "Customs",   desc: "Customs inspection at destination port",     threshold: 75  },
-  { key: "arrived",   label: "Arrived",   desc: "Vessel berthed at destination port",         threshold: 90  },
-  { key: "delivered", label: "Delivered", desc: "Cargo transferred to consignee",             threshold: 100 },
-];
-
-// ─── Date-based stage calculation ───────────────────────────────────────────
-
-/**
- * Derives the current timeline stage from actual shipment dates.
- * This ensures the timeline always reflects real calendar state,
- * never showing "Departed" when departure is still in the future.
- */
-function getStageFromDates(
-  depDate: Date | null,
-  arrDate: Date | null,
-  pct: number
-): number {
-  const now = new Date();
-
-  if (!depDate || !arrDate) {
-    // fallback to pct thresholds
-    let idx = 0;
-    for (let i = 0; i < TIMELINE.length; i++) {
-      if (pct >= TIMELINE[i].threshold) idx = i;
-    }
-    return idx;
-  }
-
-  // Before departure: Booked, or Loaded if <24h away
-  if (now < depDate) {
-    const hoursToDepart = (depDate.getTime() - now.getTime()) / 3600000;
-    return hoursToDepart <= 24 ? 1 : 0;
-  }
-
-  // After arrival date
-  if (now >= arrDate) {
-    return pct >= 100 ? 6 : 5;
-  }
-
-  // During transit — use elapsed ratio for sub-stages
-  const total = arrDate.getTime() - depDate.getTime();
-  const elapsed = now.getTime() - depDate.getTime();
-  const ratio = Math.max(0, Math.min(1, elapsed / total));
-
-  if (ratio >= 0.90) return 5; // Arrived
-  if (ratio >= 0.72) return 4; // Customs
-  if (ratio >= 0.10) return 3; // At Sea
-  return 2;                    // Departed
-}
-
-/**
- * Calculate journey progress percent from actual dates.
- */
-function progressFromDates(depDate: Date | null, arrDate: Date | null): number {
-  if (!depDate || !arrDate) return 0;
-  const now = Date.now();
-  const departure = depDate.getTime();
-  const arrival = arrDate.getTime();
-  if (now < departure) return 0;
-  if (now >= arrival) return 100;
-  return Math.round(((now - departure) / (arrival - departure)) * 100);
-}
 
 // ─── Deterministic container number ──────────────────────────────────────────
 
@@ -114,7 +47,6 @@ function buildActivity(
 
   const fmt = (d: Date) => format(d, "MMM dd, HH:mm");
 
-  // Booking is always in the past relative to departure
   if (stageIdx >= 0 && depDate) {
     const bookingDate = new Date(depDate.getTime() - 4 * 86400000);
     events.push({ time: fmt(bookingDate), title: "Booking confirmed", desc: "Shipment booked and confirmed", color: "#2563eb" });
@@ -178,7 +110,6 @@ async function downloadPdf(data: {
   const margin = 14;
   let y = 0;
 
-  // ── Header band ──
   doc.setFillColor(15, 23, 42);
   doc.rect(0, 0, W, 32, "F");
 
@@ -204,7 +135,6 @@ async function downloadPdf(data: {
 
   y = 40;
 
-  // ── Helper: section header ──
   const sectionHeader = (label: string) => {
     doc.setFillColor(239, 246, 255);
     doc.rect(margin, y, W - margin * 2, 7, "F");
@@ -215,7 +145,6 @@ async function downloadPdf(data: {
     y += 11;
   };
 
-  // ── Helper: two-col row ──
   const row2 = (label: string, value: string) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
@@ -227,7 +156,6 @@ async function downloadPdf(data: {
     y += 6;
   };
 
-  // ── Shipment details ──
   sectionHeader("Shipment Details");
   row2("Shipment ID", `INV-${String(data.invId).padStart(5, "0")}`);
   row2("Container Number", data.containerNum);
@@ -235,21 +163,16 @@ async function downloadPdf(data: {
   row2("Cargo Type", data.cargoType.charAt(0).toUpperCase() + data.cargoType.slice(1));
   row2("Origin Port", data.origin);
   row2("Destination Port", data.destination);
-
-  const locLabel = data.pct >= 90 ? data.destination.split(",")[0]
-    : data.pct >= 12 ? "International Waters"
-    : data.origin.split(",")[0];
-  row2("Current Location", locLabel);
+  row2("Current Status", data.stageLabel);
 
   y += 2;
 
-  // ── Voyage dates ──
   sectionHeader("Voyage Dates");
   row2("Departure Date", data.departureDate ? format(data.departureDate, "MMM dd, yyyy") : "—");
   row2("ETA (Arrival)", data.arrivalDate ? format(data.arrivalDate, "MMM dd, yyyy") : data.etaDays != null ? `${data.etaDays} days` : "—");
+  row2("Journey Progress", `${Math.round(data.pct)}%`);
   y += 2;
 
-  // ── Investment ──
   sectionHeader("Investment Summary");
   row2("Investment Amount", `${data.myAmount.toLocaleString()} USDT`);
   row2("Expected Return", data.profitPercent ? `+${data.profitPercent}% APY` : "—");
@@ -260,7 +183,6 @@ async function downloadPdf(data: {
   }
   y += 2;
 
-  // ── Journey timeline ──
   sectionHeader("Journey Timeline");
   const stageIdx = TIMELINE.findIndex(s => s.label === data.stageLabel);
   TIMELINE.forEach((stage, i) => {
@@ -290,7 +212,6 @@ async function downloadPdf(data: {
   });
   y += 2;
 
-  // ── Activity feed (last 5) ──
   if (data.actFeed.length > 0) {
     sectionHeader("Recent Activity");
     data.actFeed.slice(0, 5).forEach(evt => {
@@ -308,7 +229,6 @@ async function downloadPdf(data: {
     });
   }
 
-  // ── Footer ──
   const footerY = 287;
   doc.setDrawColor(226, 232, 240);
   doc.line(margin, footerY - 4, W - margin, footerY - 4);
@@ -338,7 +258,9 @@ export default function TrackerShipmentDetail() {
   const livePositions = useTrackerPositions();
 
   const inv = trackerShipments?.find(s => s.id === invId);
-  const live = livePositions.find(p => p.id === invId);
+
+  // Match live socket by SHIPMENT ID (socket emits shipment IDs, not investment IDs)
+  const live = livePositions.find(p => p.id === (inv?.shipmentId ?? -1));
 
   const shipmentId = inv?.shipmentId;
   const { data: mktShipment, isLoading: mktLoading } = useGetShipment(
@@ -375,38 +297,43 @@ export default function TrackerShipmentDetail() {
 
   const color = cargoColors[inv.cargoType] || "#2563eb";
   const emoji = cargoEmoji[inv.cargoType] || "📦";
-  const overdue = (inv.etaDays ?? 99) <= 0;
 
-  // Parse actual dates from market shipment
+  // Parse dates — prefer mktShipment (full data), fall back to API fields
   const depDate = mktShipment?.departureDate
     ? (typeof mktShipment.departureDate === "string"
       ? parseISO(mktShipment.departureDate)
       : new Date(mktShipment.departureDate))
-    : null;
+    : (inv as any).departureDate
+      ? parseISO((inv as any).departureDate)
+      : null;
 
   const arrDate = mktShipment?.arrivalDate
     ? (typeof mktShipment.arrivalDate === "string"
       ? parseISO(mktShipment.arrivalDate)
       : new Date(mktShipment.arrivalDate))
-    : null;
+    : (inv as any).arrivalDate
+      ? parseISO((inv as any).arrivalDate)
+      : null;
 
-  // Use date-based progress (live socket overrides only when available)
-  const datePct = progressFromDates(depDate, arrDate);
-  const pct = Math.min(100, Math.max(0, live?.progressPercent ?? datePct ?? inv.progressPercent ?? 0));
+  // ── SINGLE SOURCE OF TRUTH: state engine ─────────────────────────────────
+  // DB status drives ALL display logic — no independent calculations elsewhere
+  const dbStatus: string = (mktShipment as any)?.status ?? (inv as any)?.dbStatus ?? "open";
+  const state = computeShipmentState(dbStatus, depDate, arrDate, inv.origin, inv.destination);
 
-  // Date-based stage — never shows Departed if departure is still in the future
-  const stageIdx = getStageFromDates(depDate, arrDate, pct);
+  const pct = state.progress;
+  const stageIdx = state.stageIdx;
+  const overdue = arrDate != null && new Date() > arrDate && dbStatus !== "delivered";
 
-  const contNum = containerNum(inv.shipmentId, inv.id);
   const now = new Date();
-  const etaDate = inv.etaDays != null ? addDays(now, inv.etaDays) : arrDate;
+  const etaDate = arrDate ?? (inv.etaDays != null ? addDays(now, inv.etaDays) : null);
+  const contNum = containerNum(inv.shipmentId, inv.id);
   const actFeed = buildActivity(depDate, arrDate, stageIdx, inv.origin, inv.destination);
 
   const reportData = {
     vesselName: inv.vesselName, containerNum: contNum, cargoType: inv.cargoType,
     origin: inv.origin, destination: inv.destination, pct,
     etaDays: inv.etaDays, myAmount: inv.myAmount ?? 0, invId,
-    shipmentId: inv.shipmentId, stageLabel: TIMELINE[stageIdx].label,
+    shipmentId: inv.shipmentId, stageLabel: state.stageLabel,
     profitPercent: mktShipment?.profitPercent ? String(mktShipment.profitPercent) : null,
     departureDate: depDate, arrivalDate: arrDate, actFeed,
   };
@@ -414,7 +341,7 @@ export default function TrackerShipmentDetail() {
   return (
     <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
 
-      {/* Sticky sub-header — top: 0 since we're inside main which already starts below layout header */}
+      {/* Sticky sub-header */}
       <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "12px 16px", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", maxWidth: "760px", margin: "0 auto" }}>
           <button onClick={() => navigate("/tracker")} style={{ width: "32px", height: "32px", borderRadius: "9px", background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
@@ -449,7 +376,7 @@ export default function TrackerShipmentDetail() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "4px" }}>
                   <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", color: overdue ? "#dc2626" : color, background: overdue ? "#fef2f2" : `${color}12`, border: `1px solid ${overdue ? "#fecaca" : `${color}30`}` }}>
-                    {overdue ? "⚠ Overdue" : TIMELINE[stageIdx].label}
+                    {overdue ? "⚠ Overdue" : state.stageLabel}
                   </span>
                   {live && (
                     <span style={{ padding: "3px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, color: "#059669", background: "#ecfdf5", fontFamily: "'JetBrains Mono', monospace" }}>● LIVE</span>
@@ -488,10 +415,18 @@ export default function TrackerShipmentDetail() {
               <div style={{ padding: "10px 12px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2" }}>
                 <p style={{ margin: "0 0 2px", fontSize: "9px", fontFamily: "'JetBrains Mono', monospace", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>ETA</p>
                 <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: overdue ? "#dc2626" : "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>
-                  {pct >= 100 ? "Delivered" : overdue ? "Overdue" : inv.etaDays === 1 ? "Tomorrow" : inv.etaDays != null ? `${inv.etaDays} days` : "—"}
+                  {dbStatus === "delivered"
+                    ? "Delivered"
+                    : overdue
+                      ? "Overdue"
+                      : !state.inTransit && !state.showTransitDays
+                        ? (etaDate ? format(etaDate, "MMM dd") : "—")
+                        : inv.etaDays === 1 ? "Tomorrow" : inv.etaDays != null ? `${inv.etaDays} days` : "—"}
                 </p>
-                {etaDate && pct < 100 && !overdue && (
-                  <p style={{ margin: "1px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(etaDate, "MMM dd, yyyy")}</p>
+                {etaDate && dbStatus !== "delivered" && !overdue && (
+                  <p style={{ margin: "1px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                    {format(etaDate, "MMM dd, yyyy")}
+                  </p>
                 )}
               </div>
               <div style={{ padding: "10px 12px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2" }}>
@@ -524,11 +459,10 @@ export default function TrackerShipmentDetail() {
                 {depDate && <p style={{ margin: "2px 0 0", fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(depDate, "MMM dd")}</p>}
               </div>
 
-              {/* Progress bar track */}
+              {/* Track */}
               <div style={{ flex: 1, position: "relative" }}>
                 <div style={{ height: "3px", background: "#e2e8f0", borderRadius: "2px", position: "relative", overflow: "visible" }}>
                   <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, #2563eb, ${color})`, borderRadius: "2px", maxWidth: "100%" }} />
-                  {/* Ship marker */}
                   <div style={{
                     position: "absolute", top: "50%",
                     left: `${Math.min(Math.max(pct, 2), 96)}%`,
@@ -543,8 +477,9 @@ export default function TrackerShipmentDetail() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", marginTop: "14px" }}>
                   <span style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
-                    {mktShipment?.transitDays ? `${mktShipment.transitDays}d transit · ` : ""}
-                    {Math.round(pct)}% complete
+                    {state.showRouteProgress
+                      ? `${mktShipment?.transitDays ? `${mktShipment.transitDays}d transit · ` : ""}${Math.round(pct)}% complete`
+                      : "Awaiting Departure"}
                   </span>
                 </div>
               </div>
@@ -641,7 +576,7 @@ export default function TrackerShipmentDetail() {
               { icon: Package,    label: "Cargo Type",       value: inv.cargoType },
               { icon: MapPin,     label: "Origin Port",      value: inv.origin },
               { icon: MapPin,     label: "Destination",      value: inv.destination },
-              { icon: Navigation, label: "Current Location", value: stageIdx >= 5 ? inv.destination.split(",")[0] : stageIdx >= 2 ? "International Waters" : inv.origin.split(",")[0] },
+              { icon: Navigation, label: "Current Location", value: state.currentLocation },
               { icon: Calendar,   label: "Departure Date",   value: depDate ? format(depDate, "MMM dd, yyyy") : "—" },
               { icon: Clock,      label: "ETA",              value: arrDate ? format(arrDate, "MMM dd, yyyy") : etaDate ? format(etaDate, "MMM dd, yyyy") : "—" },
               { icon: TrendingUp, label: "Expected Return",  value: mktShipment?.profitPercent ? `+${mktShipment.profitPercent}% APY` : "—" },
@@ -658,6 +593,24 @@ export default function TrackerShipmentDetail() {
             ))}
           </div>
         </div>
+
+        {/* ── Transit days summary (only shown when in transit) ─── */}
+        {state.showTransitDays && state.daysInTransit != null && (
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "14px", padding: "14px 16px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: `${color}12`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Clock size={16} color={color} />
+            </div>
+            <div>
+              <p style={{ margin: 0, fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Days in Transit</p>
+              <p style={{ margin: "2px 0 0", fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                {state.daysInTransit}
+                <span style={{ fontSize: "12px", fontWeight: 500, color: "#64748b", marginLeft: "4px" }}>
+                  {mktShipment?.transitDays ? `/ ${mktShipment.transitDays} days total` : "days"}
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Activity Feed ───────────────────────────────── */}
         {actFeed.length > 0 && (

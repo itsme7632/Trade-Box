@@ -5,6 +5,33 @@ import { requireAuth } from "../lib/auth";
 
 const router = Router();
 
+/**
+ * Status-aware progress calculation — matches the UI state engine.
+ * Never shows date-based progress for pre-departure shipments.
+ */
+function computeProgress(
+  status: string,
+  departure: number,
+  arrival: number,
+  now: number,
+): number {
+  if (status === "delivered") return 100;
+  if (status === "open" || status === "funded") {
+    return status === "funded" ? 15 : 5;
+  }
+  if (now < departure) return 5;
+
+  const total = arrival - departure;
+  const elapsed = now - departure;
+  if (total <= 0) return 30;
+  const ratio = Math.max(0, Math.min(1, elapsed / total));
+
+  if (ratio >= 0.90) return 90;
+  if (ratio >= 0.72) return Math.round(75 + ((ratio - 0.72) / (0.90 - 0.72)) * 14);
+  if (ratio >= 0.10) return Math.round(50 + ((ratio - 0.10) / (0.72 - 0.10)) * 24);
+  return Math.round(30 + (ratio / 0.10) * 19);
+}
+
 router.get("/my-shipments", requireAuth, async (req, res) => {
   const userId = (req as typeof req & { user: { userId: number } }).user.userId;
 
@@ -13,16 +40,16 @@ router.get("/my-shipments", requireAuth, async (req, res) => {
   );
 
   const results = [];
+  const now = Date.now();
+
   for (const inv of investments) {
     const [shipment] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, inv.shipmentId)).limit(1);
     if (!shipment) continue;
 
-    const now = Date.now();
     const departure = shipment.departureDate.getTime();
     const arrival = shipment.arrivalDate.getTime();
-    const total = arrival - departure;
-    const elapsed = now - departure;
-    const progressPercent = Math.min(Math.max(Math.round((elapsed / total) * 100), 0), 99);
+
+    const progressPercent = computeProgress(shipment.status, departure, arrival, now);
     const etaDays = Math.max(Math.ceil((arrival - now) / (1000 * 60 * 60 * 24)), 0);
 
     results.push({
@@ -37,6 +64,9 @@ router.get("/my-shipments", requireAuth, async (req, res) => {
       etaDays,
       myAmount: Number(inv.amount),
       cargoType: shipment.cargoType,
+      dbStatus: shipment.status,
+      departureDate: shipment.departureDate.toISOString(),
+      arrivalDate: shipment.arrivalDate.toISOString(),
     });
   }
 
