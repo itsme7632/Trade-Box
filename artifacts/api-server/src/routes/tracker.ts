@@ -67,6 +67,8 @@ router.get("/my-shipments", requireAuth, async (req, res) => {
       dbStatus: shipment.status,
       departureDate: shipment.departureDate.toISOString(),
       arrivalDate: shipment.arrivalDate.toISOString(),
+      stageOverride: shipment.stageOverride ?? null,
+      pausedAt: shipment.pausedAt ? shipment.pausedAt.toISOString() : null,
     });
   }
 

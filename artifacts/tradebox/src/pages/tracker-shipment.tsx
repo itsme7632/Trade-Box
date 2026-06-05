@@ -6,7 +6,7 @@ import {
   Navigation, Anchor, RefreshCw, TrendingUp, ChevronRight, Globe
 } from "lucide-react";
 import { format, parseISO, addDays } from "date-fns";
-import { useTrackerPositions } from "@/hooks/use-socket";
+import { useTrackerPositions, useShipmentStageChanged } from "@/hooks/use-socket";
 import { computeShipmentState, TIMELINE } from "@/lib/shipment-state";
 
 // ─── constants ──────────────────────────────────────────────────────────────
@@ -254,8 +254,9 @@ export default function TrackerShipmentDetail() {
   const invId = parseInt(params.id || "0", 10);
   const [, navigate] = useLocation();
 
-  const { data: trackerShipments, isLoading: listLoading } = useGetTrackerShipments();
+  const { data: trackerShipments, isLoading: listLoading, refetch: refetchTracker } = useGetTrackerShipments();
   const livePositions = useTrackerPositions();
+  useShipmentStageChanged(() => refetchTracker());
 
   const inv = trackerShipments?.find(s => s.id === invId);
 
@@ -318,7 +319,9 @@ export default function TrackerShipmentDetail() {
   // ── SINGLE SOURCE OF TRUTH: state engine ─────────────────────────────────
   // DB status drives ALL display logic — no independent calculations elsewhere
   const dbStatus: string = (mktShipment as any)?.status ?? (inv as any)?.dbStatus ?? "open";
-  const state = computeShipmentState(dbStatus, depDate, arrDate, inv.origin, inv.destination);
+  const stageOverride = (inv as any)?.stageOverride ?? null;
+  const pausedAt = (inv as any)?.pausedAt ? new Date((inv as any).pausedAt) : null;
+  const state = computeShipmentState(dbStatus, depDate, arrDate, inv.origin, inv.destination, stageOverride, pausedAt);
 
   const pct = state.progress;
   const stageIdx = state.stageIdx;
@@ -378,6 +381,9 @@ export default function TrackerShipmentDetail() {
                   <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", color: overdue ? "#dc2626" : color, background: overdue ? "#fef2f2" : `${color}12`, border: `1px solid ${overdue ? "#fecaca" : `${color}30`}` }}>
                     {overdue ? "⚠ Overdue" : state.stageLabel}
                   </span>
+                  {state.isPaused && (
+                    <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", color: "#d97706", background: "#fffbeb", border: "1px solid #fde68a" }}>⏸ PAUSED</span>
+                  )}
                   {live && (
                     <span style={{ padding: "3px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, color: "#059669", background: "#ecfdf5", fontFamily: "'JetBrains Mono', monospace" }}>● LIVE</span>
                   )}

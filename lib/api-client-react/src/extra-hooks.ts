@@ -534,3 +534,185 @@ export function usePublicAnnouncements() {
     refetchInterval: 60000,
   });
 }
+
+// ── Per-user Notifications ───────────────────────────────────────────────────
+
+export interface UserNotification {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  shipmentId: number | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export function useGetUserNotifications() {
+  return useQuery({
+    queryKey: ["/api/notifications"],
+    queryFn: () => customFetch<UserNotification[]>("/api/notifications"),
+    refetchInterval: 30000,
+  });
+}
+
+export function useGetUnreadNotificationCount() {
+  return useQuery({
+    queryKey: ["/api/notifications/unread-count"],
+    queryFn: () => customFetch<{ count: number }>("/api/notifications/unread-count"),
+    refetchInterval: 30000,
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => customFetch<{ success: boolean }>("/api/notifications/read-all", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/notifications"] });
+      qc.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+    },
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => customFetch<{ success: boolean }>(`/api/notifications/${id}/read`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/notifications"] });
+      qc.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
+    },
+  });
+}
+
+// ── Admin Shipment Overrides ─────────────────────────────────────────────────
+
+export interface ShipmentOverrideEvent {
+  id: number;
+  eventType: string;
+  title: string;
+  description: string | null;
+  adminId: number | null;
+  createdAt: string;
+}
+
+export interface ShipmentOverrideDetail {
+  id: number;
+  title: string;
+  status: string;
+  stageOverride: string | null;
+  pausedAt: string | null;
+  departureDate: string;
+  arrivalDate: string;
+  investorCount: number;
+  fundingRaised: number;
+  fundingGoal: number;
+  events: ShipmentOverrideEvent[];
+}
+
+export function useAdminGetShipmentOverrideDetail(id: number | null) {
+  return useQuery({
+    queryKey: ["/api/admin/shipment-overrides", id, "detail"],
+    queryFn: () => customFetch<ShipmentOverrideDetail>(`/api/admin/shipment-overrides/${id}/detail`),
+    enabled: id !== null,
+  });
+}
+
+export function useAdminSetShipmentStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, stage, note }: { id: number; stage: string; note?: string }) =>
+      customFetch<{ success: boolean; stage: string }>(`/api/admin/shipment-overrides/${id}/stage`, {
+        method: "POST",
+        body: JSON.stringify({ stage, note }),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipment-overrides", vars.id, "detail"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
+    },
+  });
+}
+
+export function useAdminClearShipmentStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/shipment-overrides/${id}/clear-stage`, { method: "POST" }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipment-overrides", id, "detail"] });
+    },
+  });
+}
+
+export function useAdminOverrideShipmentDates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; departureDate?: string; arrivalDate?: string; note?: string }) =>
+      customFetch<{ success: boolean }>(`/api/admin/shipment-overrides/${id}/dates`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipment-overrides", vars.id, "detail"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
+    },
+  });
+}
+
+export function useAdminAddShipmentEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; eventType: string; title: string; description?: string }) =>
+      customFetch<{ success: boolean }>(`/api/admin/shipment-overrides/${id}/event`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipment-overrides", vars.id, "detail"] });
+    },
+  });
+}
+
+export function useAdminPauseShipment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: number; note?: string }) =>
+      customFetch<{ success: boolean }>(`/api/admin/shipment-overrides/${id}/pause`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipment-overrides", vars.id, "detail"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
+    },
+  });
+}
+
+export function useAdminResumeShipment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: number; note?: string }) =>
+      customFetch<{ success: boolean }>(`/api/admin/shipment-overrides/${id}/resume`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipment-overrides", vars.id, "detail"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
+    },
+  });
+}
+
+export function useAdminForceDeliverShipment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: number; note?: string }) =>
+      customFetch<{ success: boolean; investorCount: number }>(`/api/admin/shipment-overrides/${id}/force-deliver`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/shipments"] });
+    },
+  });
+}

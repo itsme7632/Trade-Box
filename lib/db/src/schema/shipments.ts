@@ -30,6 +30,8 @@ export const shipmentsTable = pgTable("shipments", {
   volumeCbm: numeric("volume_cbm", { precision: 10, scale: 2 }),
   description: text("description"),
   isFeatured: integer("is_featured").notNull().default(0),
+  stageOverride: text("stage_override"),
+  pausedAt: timestamp("paused_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

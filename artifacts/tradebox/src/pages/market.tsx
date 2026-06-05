@@ -79,7 +79,7 @@ export default function Market() {
         borderBottom: "1px solid #e8edf2",
         padding: "20px 16px 16px",
         position: "sticky",
-        top: "56px",
+        top: 0,
         zIndex: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

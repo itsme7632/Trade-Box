@@ -18,7 +18,19 @@ export interface ShipmentState {
   showRouteProgress: boolean;
   currentLocation: string;
   daysInTransit: number | null;
+  isPaused: boolean;
 }
+
+/** Forced-stage progress values (base anchor for override display) */
+const OVERRIDE_DEFAULTS: Record<string, { idx: number; progress: number; inTransit: boolean; showTransitDays: boolean; showRouteProgress: boolean }> = {
+  booked:    { idx: 0, progress: 5,  inTransit: false, showTransitDays: false, showRouteProgress: false },
+  loaded:    { idx: 1, progress: 15, inTransit: false, showTransitDays: false, showRouteProgress: false },
+  departed:  { idx: 2, progress: 30, inTransit: true,  showTransitDays: true,  showRouteProgress: true  },
+  at_sea:    { idx: 3, progress: 55, inTransit: true,  showTransitDays: true,  showRouteProgress: true  },
+  customs:   { idx: 4, progress: 80, inTransit: true,  showTransitDays: true,  showRouteProgress: true  },
+  arrived:   { idx: 5, progress: 90, inTransit: false, showTransitDays: true,  showRouteProgress: false },
+  delivered: { idx: 6, progress: 100, inTransit: false, showTransitDays: false, showRouteProgress: false },
+};
 
 /**
  * SINGLE SOURCE OF TRUTH for shipment display state.
@@ -33,6 +45,9 @@ export interface ShipmentState {
  *   delivered                 → Delivered→ 100% (fixed)
  *
  * Transit days and route progress are NEVER shown before departure.
+ *
+ * stageOverride: admin-forced stage key — bypasses date-based calculation
+ * pausedAt: admin-paused timestamp — adds isPaused=true flag, freezes progress
  */
 export function computeShipmentState(
   dbStatus: string,
@@ -40,32 +55,53 @@ export function computeShipmentState(
   arrDate: Date | null,
   origin: string,
   destination: string,
+  stageOverride?: string | null,
+  pausedAt?: Date | null,
 ): ShipmentState {
   const now = new Date();
   const originCity = origin.split(",")[0];
   const destCity = destination.split(",")[0];
+  const isPaused = pausedAt != null;
+
+  // Admin stage override — force display stage regardless of dates
+  if (stageOverride && OVERRIDE_DEFAULTS[stageOverride]) {
+    const ov = OVERRIDE_DEFAULTS[stageOverride];
+    const stageEntry = TIMELINE[ov.idx];
+    const location = ov.idx <= 1
+      ? originCity
+      : ov.idx >= 4
+      ? destCity
+      : "International Waters";
+    const daysInTransit = ov.inTransit && depDate
+      ? Math.max(0, Math.floor((now.getTime() - depDate.getTime()) / 86_400_000))
+      : null;
+    return mk(ov.idx, stageEntry.key, stageEntry.label, ov.progress,
+      ov.inTransit, ov.showTransitDays, ov.showRouteProgress,
+      location, daysInTransit, isPaused);
+  }
 
   if (dbStatus === "delivered") {
-    return mk(6, "delivered", "Delivered", 100, false, false, false, destCity, null);
+    return mk(6, "delivered", "Delivered", 100, false, false, false, destCity, null, isPaused);
   }
 
   const hasDeparted = depDate != null && now >= depDate;
 
   if (!hasDeparted) {
     if (!depDate) {
-      return mk(0, "booked", "Booked", 5, false, false, false, originCity, null);
+      return mk(0, "booked", "Booked", 5, false, false, false, originCity, null, isPaused);
     }
     const hoursToDepart = (depDate.getTime() - now.getTime()) / 3_600_000;
     if (dbStatus === "funded" || hoursToDepart <= 24) {
-      return mk(1, "loaded", "Loaded", 15, false, false, false, originCity, null);
+      return mk(1, "loaded", "Loaded", 15, false, false, false, originCity, null, isPaused);
     }
-    return mk(0, "booked", "Booked", 5, false, false, false, originCity, null);
+    return mk(0, "booked", "Booked", 5, false, false, false, originCity, null, isPaused);
   }
 
   const daysInTransit = Math.floor((now.getTime() - depDate.getTime()) / 86_400_000);
 
+  // Paused mid-transit — freeze at current date-based stage
   if (!arrDate || now >= arrDate) {
-    return mk(5, "arrived", "Arrived", 90, false, true, false, destCity, daysInTransit);
+    return mk(5, "arrived", "Arrived", 90, false, true, false, destCity, daysInTransit, isPaused);
   }
 
   const total = arrDate.getTime() - depDate.getTime();
@@ -73,18 +109,18 @@ export function computeShipmentState(
   const ratio = Math.max(0, Math.min(1, elapsed / total));
 
   if (ratio >= 0.90) {
-    return mk(5, "arrived", "Arrived", 90, false, true, false, destCity, daysInTransit);
+    return mk(5, "arrived", "Arrived", 90, false, true, false, destCity, daysInTransit, isPaused);
   }
   if (ratio >= 0.72) {
     const p = Math.round(75 + ((ratio - 0.72) / (0.90 - 0.72)) * 14);
-    return mk(4, "customs", "Customs", p, true, true, true, destCity, daysInTransit);
+    return mk(4, "customs", "Customs", p, true, true, true, destCity, daysInTransit, isPaused);
   }
   if (ratio >= 0.10) {
     const p = Math.round(50 + ((ratio - 0.10) / (0.72 - 0.10)) * 24);
-    return mk(3, "at_sea", "At Sea", p, true, true, true, "International Waters", daysInTransit);
+    return mk(3, "at_sea", "At Sea", p, true, true, true, "International Waters", daysInTransit, isPaused);
   }
   const p = Math.round(30 + (ratio / 0.10) * 19);
-  return mk(2, "departed", "Departed", p, true, true, true, originCity, daysInTransit);
+  return mk(2, "departed", "Departed", p, true, true, true, originCity, daysInTransit, isPaused);
 }
 
 function mk(
@@ -97,10 +133,11 @@ function mk(
   showRouteProgress: boolean,
   currentLocation: string,
   daysInTransit: number | null,
+  isPaused: boolean,
 ): ShipmentState {
   return {
     stageIdx, stageKey, stageLabel, progress,
     inTransit, showTransitDays, showRouteProgress,
-    currentLocation, daysInTransit,
+    currentLocation, daysInTransit, isPaused,
   };
 }

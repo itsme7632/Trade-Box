@@ -41,7 +41,16 @@ export type AuditEvent =
   | "announcement_created"
   | "announcement_updated"
   | "announcement_deleted"
-  | "branding_uploaded";
+  | "branding_uploaded"
+  | "shipment_stage_override"
+  | "shipment_stage_override_cleared"
+  | "shipment_dates_override"
+  | "shipment_custom_event"
+  | "shipment_paused"
+  | "shipment_resumed"
+  | "shipment_force_delivered"
+  | "guild_commission_paid"
+  | "cron_auto_delivery";
 
 export interface AuditLogEntry {
   id: string;

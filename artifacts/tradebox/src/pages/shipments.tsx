@@ -47,7 +47,7 @@ export default function Shipments() {
     <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
       {/* Sticky header */}
       <div style={{
-        position: "sticky", top: "56px", zIndex: 20,
+        position: "sticky", top: 0, zIndex: 20,
         background: "#ffffff", borderBottom: "1px solid #e8edf2",
         boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         padding: "14px 16px",

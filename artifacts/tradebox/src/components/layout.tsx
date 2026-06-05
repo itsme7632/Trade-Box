@@ -2,6 +2,9 @@ import { ReactNode, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/components/auth-context";
 import { BarChart2, Ship, Wallet, Map, User, Anchor, Users, ShieldAlert, LogOut, Bell, X, Info, AlertTriangle, Megaphone, Wrench, Tag, ChevronRight } from "lucide-react";
+import { useGetUnreadNotificationCount } from "@workspace/api-client-react/src/extra-hooks";
+import { useShipmentStageChanged } from "@/hooks/use-socket";
+import { useQueryClient } from "@tanstack/react-query";
 
 // ─── Announcement Popup ──────────────────────────────────────────────────────
 
@@ -204,6 +207,13 @@ function AnnouncementPopup({ user }: { user: { role?: string } | null }) {
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const qc = useQueryClient();
+  const { data: unreadData, refetch: refetchUnread } = useGetUnreadNotificationCount();
+  const unreadCount = unreadData?.count ?? 0;
+  useShipmentStageChanged(() => {
+    refetchUnread();
+    qc.invalidateQueries({ queryKey: ["/api/notifications"] });
+  });
 
   const navItems = [
     { name: "Market", path: "/market", icon: BarChart2 },
@@ -225,7 +235,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const allSidebarItems = [...navItems, ...sidebarExtra];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", width: "100%", background: "#f6f8fb" }}>
+    <div style={{ display: "flex", height: "100dvh", width: "100%", background: "#f6f8fb", overflow: "hidden" }}>
 
       {/* Desktop Sidebar */}
       <aside style={{
@@ -365,8 +375,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </span>
             </div>
             <Link href="/notifications">
-              <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <Bell size={15} color="#64748b" />
+              <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: unreadCount > 0 ? "#eff6ff" : "#f1f5f9", border: `1px solid ${unreadCount > 0 ? "#bfdbfe" : "#e2e8f0"}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", position: "relative" }}>
+                <Bell size={15} color={unreadCount > 0 ? "#2563eb" : "#64748b"} />
+                {unreadCount > 0 && (
+                  <div style={{ position: "absolute", top: "-4px", right: "-4px", width: "14px", height: "14px", borderRadius: "50%", background: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid white" }}>
+                    <span style={{ fontSize: "8px", fontWeight: 700, color: "white", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1 }}>
+                      {Math.min(unreadCount, 9)}{unreadCount > 9 ? "+" : ""}
+                    </span>
+                  </div>
+                )}
               </div>
             </Link>
             <Link href="/profile">

@@ -10,6 +10,8 @@ import profileRouter from "./profile";
 import marketRouter from "./market";
 import adminRouter from "./admin";
 import adminControlRouter from "./admin-control";
+import shipmentOverridesRouter from "./shipment-overrides";
+import notificationsUserRouter from "./notifications-user";
 import twofaRouter from "./twofa";
 import supportRouter from "./support";
 import announcementsRouter from "./announcements-public";
@@ -28,6 +30,8 @@ router.use("/profile", profileRouter);
 router.use("/market", marketRouter);
 router.use("/admin", adminControlRouter);
 router.use("/admin", adminRouter);
+router.use("/admin/shipment-overrides", shipmentOverridesRouter);
+router.use("/notifications", notificationsUserRouter);
 router.use("/announcements", announcementsRouter);
 router.use("/support", supportRouter);
 

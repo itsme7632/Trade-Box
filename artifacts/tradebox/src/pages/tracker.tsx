@@ -6,7 +6,7 @@ import {
   CheckCircle2, ArrowRight, RefreshCw, TrendingUp, ChevronRight
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useTrackerPositions } from "@/hooks/use-socket";
+import { useTrackerPositions, useShipmentStageChanged } from "@/hooks/use-socket";
 import { computeShipmentState } from "@/lib/shipment-state";
 
 function S({ h = 80 }: { h?: number }) {
@@ -44,13 +44,17 @@ export default function Tracker() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [, navigate] = useLocation();
 
+  useShipmentStageChanged(() => { refetch(); setLastRefresh(new Date()); });
+
   // Enrich each shipment with its state — single source of truth
   const list = (shipments ?? []).map(s => {
-    const raw = s as typeof s & { dbStatus?: string; departureDate?: string; arrivalDate?: string };
+    const raw = s as typeof s & { dbStatus?: string; departureDate?: string; arrivalDate?: string; stageOverride?: string | null; pausedAt?: string | null };
     const dbStatus = raw.dbStatus ?? "open";
     const depDate = raw.departureDate ? parseISO(raw.departureDate) : null;
     const arrDate = raw.arrivalDate ? parseISO(raw.arrivalDate) : null;
-    const state = computeShipmentState(dbStatus, depDate, arrDate, s.origin, s.destination);
+    const stageOverride = raw.stageOverride ?? null;
+    const pausedAt = raw.pausedAt ? new Date(raw.pausedAt) : null;
+    const state = computeShipmentState(dbStatus, depDate, arrDate, s.origin, s.destination, stageOverride, pausedAt);
 
     // Live socket matches by SHIPMENT ID (not investment ID)
     const live = livePositions.find(p => p.id === s.shipmentId);

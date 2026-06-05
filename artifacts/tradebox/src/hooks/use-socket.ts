@@ -83,3 +83,29 @@ export function useTrackerPositions(): ShipmentPosition[] {
 
   return positions;
 }
+
+export function useShipmentStageChanged(onChanged: (data: { shipmentId: number; type: string }) => void) {
+  const callbackRef = useRef(onChanged);
+  callbackRef.current = onChanged;
+
+  useEffect(() => {
+    const socket = getSocket();
+    refCount++;
+
+    const handler = (data: { shipmentId: number; type: string }) => {
+      callbackRef.current(data);
+    };
+    socket.on("shipment:stage_changed", handler);
+    socket.on("notification:new", handler);
+
+    return () => {
+      socket.off("shipment:stage_changed", handler);
+      socket.off("notification:new", handler);
+      refCount--;
+      if (refCount === 0) {
+        sharedSocket?.disconnect();
+        sharedSocket = null;
+      }
+    };
+  }, []);
+}

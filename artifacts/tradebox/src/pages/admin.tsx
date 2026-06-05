@@ -13,6 +13,7 @@ import {
 } from "@workspace/api-client-react/src/extra-hooks";
 import { AdminUsersV2 } from "./admin-users";
 import { AdminSettings } from "./admin-settings";
+import { AdminShipmentOverrides } from "./admin-shipment-overrides";
 import { AdminPlans } from "./admin-plans";
 import { AdminAnnouncements } from "./admin-announcements";
 import { AdminAuditLog } from "./admin-audit-log";
@@ -20,7 +21,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  ShieldAlert, Users, Anchor, Wallet, FileCheck, Check, X, Search, Plus, MessageSquare,
+  ShieldAlert, Users, Anchor, Ship, Wallet, FileCheck, Check, X, Search, Plus, MessageSquare,
   Settings, Clock, RefreshCw, CheckCircle, ChevronDown, ChevronUp, BarChart3, Megaphone,
   SlidersHorizontal, Menu, ClipboardList
 } from "lucide-react";
@@ -44,6 +45,7 @@ const TABS = [
   { value: "announcements", label: "Announcements", icon: <Megaphone className="h-4 w-4" /> },
   { value: "tickets", label: "Tickets", icon: null },
   { value: "support-settings", label: "Support Config", icon: null },
+  { value: "overrides", label: "Ship Control", icon: <Ship className="h-4 w-4" /> },
   { value: "audit-logs", label: "Audit Logs", icon: <ClipboardList className="h-4 w-4" /> },
   { value: "platform-settings", label: "Settings", icon: <SlidersHorizontal className="h-4 w-4" /> },
 ];
@@ -195,6 +197,7 @@ export default function AdminDashboard() {
           <TabsContent value="announcements"><AdminAnnouncements /></TabsContent>
           <TabsContent value="tickets"><AdminTickets /></TabsContent>
           <TabsContent value="support-settings"><AdminSupportSettings /></TabsContent>
+          <TabsContent value="overrides"><AdminShipmentOverrides /></TabsContent>
           <TabsContent value="audit-logs"><AdminAuditLog /></TabsContent>
           <TabsContent value="platform-settings"><AdminSettings /></TabsContent>
         </Tabs>
