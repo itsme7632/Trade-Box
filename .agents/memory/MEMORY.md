@@ -6,3 +6,5 @@
 - [TradeBox session invalidation pattern](tradebox-session-version.md) — sessionVersion int on usersTable; embedded in JWT; requireAuth does a DB lookup per request to validate status + version; increment on ban/force-logout/reset-password.
 - [TradeBox admin router ordering](tradebox-admin-routers.md) — adminControlRouter must be registered BEFORE adminRouter in routes/index.ts so enhanced GET /users routes take priority over legacy ones.
 - [TradeBox admin hooks split](tradebox-admin-hooks.md) — generated orval hooks from src/generated/api.ts; hand-written admin control hooks in extra-hooks.ts; mix both import paths in admin page components.
+- [TradeBox raw SQL dynamic UPDATE pattern](tradebox-drizzle-raw-update.md) — for dynamic multi-field UPDATE with drizzle use sql.join(setParts, sql`, `) where each part is sql`${sql.raw(col)} = ${val}`; positional $N params don't work via db.execute.
+- [TradeBox admin audit log](tradebox-audit-log.md) — in-memory circular buffer (500 entries) in audit.ts; getAuditLog() exported; adminId→traderId lookup done at GET /admin/audit-logs time; resets on server restart by design.

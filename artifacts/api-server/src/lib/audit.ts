@@ -19,7 +19,40 @@ export type AuditEvent =
   | "deposit_rejected"
   | "kyc_approved"
   | "kyc_rejected"
-  | "admin_credit_profit";
+  | "admin_credit_profit"
+  | "user_suspended"
+  | "user_unsuspended"
+  | "user_banned"
+  | "admin_reset_password"
+  | "admin_force_logout"
+  | "user_promoted"
+  | "user_demoted"
+  | "admin_add_balance"
+  | "admin_deduct_balance"
+  | "admin_add_commission"
+  | "settings_updated"
+  | "plan_featured_toggled"
+  | "plan_activated"
+  | "plan_deactivated"
+  | "plan_edited"
+  | "plan_duplicated"
+  | "plan_archived"
+  | "plan_unarchived"
+  | "announcement_created"
+  | "announcement_updated"
+  | "announcement_deleted"
+  | "branding_uploaded";
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  event: AuditEvent;
+  adminId?: number;
+  adminTraderId?: string;
+  targetUser?: string;
+  ip?: string;
+  detail?: Record<string, unknown>;
+}
 
 interface AuditContext {
   event: AuditEvent;
@@ -30,8 +63,26 @@ interface AuditContext {
   detail?: Record<string, unknown>;
 }
 
+const MAX_LOG_SIZE = 500;
+const auditStore: AuditLogEntry[] = [];
+
 export function audit(ctx: AuditContext): void {
   logger.info({ audit: true, ...ctx }, `AUDIT: ${ctx.event}`);
+  const entry: AuditLogEntry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    event: ctx.event,
+    adminId: ctx.userId,
+    targetUser: ctx.detail?.targetUser as string | undefined,
+    ip: ctx.ip,
+    detail: ctx.detail,
+  };
+  auditStore.push(entry);
+  if (auditStore.length > MAX_LOG_SIZE) auditStore.shift();
+}
+
+export function getAuditLog(): AuditLogEntry[] {
+  return [...auditStore].reverse();
 }
 
 export function getClientIp(req: { ip?: string; headers: Record<string, string | string[] | undefined> }): string {

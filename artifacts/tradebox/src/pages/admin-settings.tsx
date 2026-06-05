@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,13 +6,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription } from "@/components/ui/form";
-import { useAdminGetSettings, useAdminUpdateSettings } from "@workspace/api-client-react/src/extra-hooks";
-import { Settings, Globe, DollarSign, Shield, Users } from "lucide-react";
+import { useAdminGetSettings, useAdminUpdateSettings, useAdminUploadBranding } from "@workspace/api-client-react/src/extra-hooks";
+import { Settings, Globe, DollarSign, Shield, Users, Upload, ImageIcon, X } from "lucide-react";
 
 const schema = z.object({
   siteName: z.string().optional(),
-  logoUrl: z.string().optional(),
-  faviconUrl: z.string().optional(),
   supportEmail: z.string().optional(),
   telegramLink: z.string().optional(),
   whatsappLink: z.string().optional(),
@@ -32,8 +30,99 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+function BrandingUpload({
+  type,
+  label,
+  currentUrl,
+  acceptedFormats,
+  onSuccess,
+}: {
+  type: "logo" | "favicon";
+  label: string;
+  currentUrl: string | null;
+  acceptedFormats: string;
+  onSuccess: (url: string) => void;
+}) {
+  const { toast } = useToast();
+  const upload = useAdminUploadBranding();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const handleFile = (file: File) => {
+    const maxMb = 2;
+    if (file.size > maxMb * 1024 * 1024) {
+      toast({ title: "File too large", description: `Max ${maxMb}MB allowed`, variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setPreview(dataUrl);
+      upload.mutate(
+        { fileData: dataUrl, fileName: file.name, type },
+        {
+          onSuccess: (res) => {
+            toast({ title: `${label} uploaded` });
+            onSuccess(res.url);
+          },
+          onError: (err: any) => toast({ title: "Upload failed", description: err?.message, variant: "destructive" }),
+        }
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const displayUrl = preview || currentUrl;
+
+  return (
+    <div className="bg-[#F8FAFD] border border-[#EEF2F8] rounded-xl p-4 space-y-3">
+      <p className="text-xs font-mono uppercase text-[#6A82A0] font-bold">{label}</p>
+      <div className="flex items-start gap-4 flex-wrap">
+        {/* Preview */}
+        <div className="w-20 h-20 rounded-lg border border-[#EEF2F8] bg-white flex items-center justify-center overflow-hidden shrink-0">
+          {displayUrl ? (
+            <img src={displayUrl} alt={label} className="w-full h-full object-contain" />
+          ) : (
+            <ImageIcon className="h-8 w-8 text-[#CBD5E1]" />
+          )}
+        </div>
+
+        {/* Upload zone */}
+        <div
+          className={`flex-1 min-w-[200px] border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${dragging ? "border-[#0066FF] bg-[#0066FF]/5" : "border-[#EEF2F8] hover:border-[#0066FF]/40"}`}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload className="h-6 w-6 text-[#6A82A0] mx-auto mb-1" />
+          <p className="text-xs text-[#6A82A0] font-mono">Drop file or click to browse</p>
+          <p className="text-[10px] text-[#94a3b8] mt-0.5">{acceptedFormats} · Max 2MB</p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={acceptedFormats}
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+          />
+        </div>
+      </div>
+
+      {upload.isPending && (
+        <p className="text-xs text-[#0066FF] font-mono animate-pulse">Uploading…</p>
+      )}
+      {currentUrl && !preview && (
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] text-[#6A82A0] font-mono truncate flex-1">Current: {currentUrl}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminSettings() {
-  const { data: settings } = useAdminGetSettings();
+  const { data: settings, refetch } = useAdminGetSettings();
   const update = useAdminUpdateSettings();
   const { toast } = useToast();
 
@@ -46,8 +135,6 @@ export function AdminSettings() {
     if (settings) {
       form.reset({
         siteName: settings.siteName,
-        logoUrl: settings.logoUrl ?? "",
-        faviconUrl: settings.faviconUrl ?? "",
         supportEmail: settings.supportEmail ?? "",
         telegramLink: settings.telegramLink ?? "",
         whatsappLink: settings.whatsappLink ?? "",
@@ -76,16 +163,37 @@ export function AdminSettings() {
 
   return (
     <div className="mt-6 space-y-6">
+      {/* Branding Section */}
+      <div className="bg-white rounded-xl border border-[#EEF2F8] p-6 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 font-bold text-[#0F1923]">
+          <span className="text-[#0066FF]"><ImageIcon className="h-4 w-4" /></span>
+          Branding
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <BrandingUpload
+            type="logo"
+            label="Logo Upload"
+            currentUrl={settings?.logoUrl ?? null}
+            acceptedFormats=".png,.svg,.webp"
+            onSuccess={() => refetch()}
+          />
+          <BrandingUpload
+            type="favicon"
+            label="Favicon Upload"
+            currentUrl={settings?.faviconUrl ?? null}
+            acceptedFormats=".ico,.png"
+            onSuccess={() => refetch()}
+          />
+        </div>
+      </div>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-
           {/* General */}
           <Section icon={<Globe className="h-4 w-4" />} title="General">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Field form={form} name="siteName" label="Site Name" />
               <Field form={form} name="supportEmail" label="Support Email" />
-              <Field form={form} name="logoUrl" label="Logo URL" />
-              <Field form={form} name="faviconUrl" label="Favicon URL" />
               <Field form={form} name="telegramLink" label="Telegram Link" />
               <Field form={form} name="whatsappLink" label="WhatsApp Link" />
             </div>

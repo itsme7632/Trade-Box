@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,17 +8,40 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Megaphone, Bell } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Megaphone, Bell,
+  Info, AlertTriangle, Wrench, Tag, Clock
+} from "lucide-react";
 import {
   useAdminGetAnnouncements, useAdminCreateAnnouncement, useAdminUpdateAnnouncement,
   useAdminDeleteAnnouncement, type Announcement,
 } from "@workspace/api-client-react/src/extra-hooks";
 
+const ANNOUNCEMENT_TYPES = [
+  { value: "banner", label: "Banner", icon: <Megaphone className="h-3.5 w-3.5" />, color: "#F59E0B" },
+  { value: "popup", label: "Popup", icon: <Bell className="h-3.5 w-3.5" />, color: "#0066FF" },
+  { value: "information", label: "Information", icon: <Info className="h-3.5 w-3.5" />, color: "#0066FF" },
+  { value: "update", label: "Update", icon: <Tag className="h-3.5 w-3.5" />, color: "#7C3AED" },
+  { value: "warning", label: "Warning", icon: <AlertTriangle className="h-3.5 w-3.5" />, color: "#F59E0B" },
+  { value: "maintenance", label: "Maintenance", icon: <Wrench className="h-3.5 w-3.5" />, color: "#EF4444" },
+  { value: "promotion", label: "Promotion", icon: <Tag className="h-3.5 w-3.5" />, color: "#22C55E" },
+];
+
+const AUDIENCE_OPTIONS = [
+  { value: "all", label: "Everyone" },
+  { value: "kyc_approved", label: "KYC Approved" },
+  { value: "kyc_pending", label: "KYC Pending" },
+  { value: "no_kyc", label: "No KYC" },
+  { value: "verified_users", label: "Verified Users" },
+  { value: "investors_only", label: "Investors Only" },
+  { value: "admins", label: "Admins Only" },
+];
+
 const announcementSchema = z.object({
   title: z.string().min(1, "Title required"),
   message: z.string().min(1, "Message required"),
-  type: z.enum(["popup", "banner"]),
-  targetAudience: z.enum(["all", "kyc_approved", "kyc_pending", "no_kyc"]),
+  type: z.string(),
+  targetAudience: z.string(),
   isActive: z.boolean(),
   scheduledAt: z.string().optional(),
   expiresAt: z.string().optional(),
@@ -26,17 +49,42 @@ const announcementSchema = z.object({
 
 type FormValues = z.infer<typeof announcementSchema>;
 
-const typeIcon: Record<string, React.ReactNode> = {
-  popup: <Bell className="h-3 w-3" />,
-  banner: <Megaphone className="h-3 w-3" />,
-};
+function getTypeConfig(type: string) {
+  return ANNOUNCEMENT_TYPES.find(t => t.value === type) ?? ANNOUNCEMENT_TYPES[0];
+}
 
-const audienceLabel: Record<string, string> = {
-  all: "All Users",
-  kyc_approved: "KYC Approved",
-  kyc_pending: "KYC Pending",
-  no_kyc: "No KYC",
-};
+function getAudienceLabel(value: string) {
+  return AUDIENCE_OPTIONS.find(a => a.value === value)?.label ?? value;
+}
+
+function ExpiryCountdown({ expiresAt }: { expiresAt: string | null }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const update = () => {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft("Expired"); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      if (d > 0) setTimeLeft(`${d}d ${h}h left`);
+      else if (h > 0) setTimeLeft(`${h}h ${m}m left`);
+      else setTimeLeft(`${m}m left`);
+    };
+    update();
+    const interval = setInterval(update, 60000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  if (!expiresAt || !timeLeft) return null;
+  const isExpiring = new Date(expiresAt).getTime() - Date.now() < 3600000;
+  return (
+    <span className={`flex items-center gap-1 text-[10px] font-mono ${isExpiring ? "text-[#EF4444]" : "text-[#6A82A0]"}`}>
+      <Clock className="h-3 w-3" />{timeLeft}
+    </span>
+  );
+}
 
 export function AdminAnnouncements() {
   const { toast } = useToast();
@@ -48,13 +96,11 @@ export function AdminAnnouncements() {
   const [dialogMode, setDialogMode] = useState<"create" | "edit" | null>(null);
   const [editTarget, setEditTarget] = useState<Announcement | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
+  const [typeFilter, setTypeFilter] = useState("all");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(announcementSchema),
-    defaultValues: {
-      title: "", message: "", type: "banner", targetAudience: "all", isActive: true,
-      scheduledAt: "", expiresAt: "",
-    },
+    defaultValues: { title: "", message: "", type: "banner", targetAudience: "all", isActive: true, scheduledAt: "", expiresAt: "" },
   });
 
   const openCreate = () => {
@@ -67,8 +113,8 @@ export function AdminAnnouncements() {
     form.reset({
       title: a.title,
       message: a.message,
-      type: a.type as any,
-      targetAudience: a.targetAudience as any,
+      type: a.type,
+      targetAudience: a.targetAudience,
       isActive: a.isActive,
       scheduledAt: a.scheduledAt ? a.scheduledAt.slice(0, 16) : "",
       expiresAt: a.expiresAt ? a.expiresAt.slice(0, 16) : "",
@@ -83,19 +129,10 @@ export function AdminAnnouncements() {
       scheduledAt: values.scheduledAt ? new Date(values.scheduledAt).toISOString() : null,
       expiresAt: values.expiresAt ? new Date(values.expiresAt).toISOString() : null,
     };
-
-    const onSuccess = () => {
-      toast({ title: dialogMode === "create" ? "Announcement created" : "Announcement updated" });
-      setDialogMode(null);
-      refetch();
-    };
+    const onSuccess = () => { toast({ title: dialogMode === "create" ? "Announcement created" : "Announcement updated" }); setDialogMode(null); refetch(); };
     const onError = (err: any) => toast({ title: "Error", description: err?.message ?? "Failed", variant: "destructive" });
-
-    if (dialogMode === "create") {
-      createMut.mutate(payload as any, { onSuccess, onError });
-    } else if (editTarget) {
-      updateMut.mutate({ id: editTarget.id, ...payload } as any, { onSuccess, onError });
-    }
+    if (dialogMode === "create") createMut.mutate(payload as any, { onSuccess, onError });
+    else if (editTarget) updateMut.mutate({ id: editTarget.id, ...payload } as any, { onSuccess, onError });
   };
 
   const handleToggleActive = (a: Announcement) => {
@@ -112,52 +149,67 @@ export function AdminAnnouncements() {
   };
 
   const now = new Date();
+  const filtered = (announcements ?? []).filter(a => typeFilter === "all" || a.type === typeFilter);
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="flex justify-between items-center">
-        <span className="text-xs font-mono text-[#6A82A0] uppercase">{announcements?.length ?? 0} announcements</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-40 bg-white border-[#EEF2F8] text-sm"><SelectValue placeholder="All Types" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {ANNOUNCEMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span className="text-xs font-mono text-[#6A82A0] uppercase">{filtered.length} announcements</span>
+        </div>
         <Button className="bg-[#0066FF] hover:bg-[#0052CC] text-white" onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />New Announcement
         </Button>
       </div>
 
       <div className="space-y-3">
-        {announcements?.map(a => {
+        {filtered.map(a => {
           const isExpired = a.expiresAt ? new Date(a.expiresAt) < now : false;
           const isScheduled = a.scheduledAt ? new Date(a.scheduledAt) > now : false;
+          const typeConfig = getTypeConfig(a.type);
 
           return (
-            <div key={a.id} className={`bg-white rounded-xl border shadow-sm overflow-hidden ${!a.isActive || isExpired ? "border-[#EEF2F8] opacity-60" : "border-[#EEF2F8]"}`}>
+            <div key={a.id} className={`bg-white rounded-xl border shadow-sm overflow-hidden ${!a.isActive || isExpired ? "opacity-60 border-[#EEF2F8]" : "border-[#EEF2F8]"}`}>
               <div className="flex items-start gap-3 p-4">
-                <div className={`mt-0.5 p-1.5 rounded ${a.type === "popup" ? "bg-[#0066FF]/10 text-[#0066FF]" : "bg-[#F59E0B]/10 text-[#F59E0B]"}`}>
-                  {typeIcon[a.type]}
+                <div className="mt-0.5 p-1.5 rounded shrink-0" style={{ background: `${typeConfig.color}18`, color: typeConfig.color }}>
+                  {typeConfig.icon}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-sm text-[#0F1923]">{a.title}</span>
-                    <span className="text-xs font-mono text-[#6A82A0] uppercase">{a.type}</span>
-                    <span className="text-xs bg-[#EEF2F8] text-[#6A82A0] px-2 py-0.5 rounded font-mono">{audienceLabel[a.targetAudience] ?? a.targetAudience}</span>
-                    {isExpired && <span className="text-xs text-[#EF4444] font-mono">EXPIRED</span>}
-                    {isScheduled && <span className="text-xs text-[#F59E0B] font-mono">SCHEDULED</span>}
-                    {a.isActive && !isExpired && !isScheduled && <span className="text-xs text-[#22C55E] font-mono">LIVE</span>}
+                    <span className="text-xs font-mono text-[#6A82A0] uppercase bg-[#EEF2F8] px-1.5 py-0.5 rounded">{typeConfig.label}</span>
+                    <span className="text-xs bg-[#EEF2F8] text-[#6A82A0] px-2 py-0.5 rounded font-mono">{getAudienceLabel(a.targetAudience)}</span>
+                    {isExpired && <span className="text-xs text-[#EF4444] font-mono font-bold">EXPIRED</span>}
+                    {isScheduled && <span className="text-xs text-[#F59E0B] font-mono font-bold">SCHEDULED</span>}
+                    {a.isActive && !isExpired && !isScheduled && <span className="text-xs text-[#22C55E] font-mono font-bold">LIVE</span>}
                   </div>
                   <p className="text-xs text-[#6A82A0] mt-1 line-clamp-2">{a.message}</p>
-                  <div className="flex gap-4 mt-1 text-[10px] text-[#6A82A0] font-mono flex-wrap">
+                  <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-[#6A82A0] font-mono items-center">
                     {a.scheduledAt && <span>Scheduled: {new Date(a.scheduledAt).toLocaleString()}</span>}
-                    {a.expiresAt && <span>Expires: {new Date(a.expiresAt).toLocaleString()}</span>}
+                    {a.expiresAt && (
+                      <>
+                        <span>Expires: {new Date(a.expiresAt).toLocaleString()}</span>
+                        <ExpiryCountdown expiresAt={a.expiresAt} />
+                      </>
+                    )}
                     <span>Created: {new Date(a.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <Button size="sm" variant="outline" className="text-[#6A82A0] border-[#EEF2F8] hover:bg-[#F8FAFD]"
-                    onClick={() => handleToggleActive(a)}>
+                <div className="flex gap-1.5 shrink-0">
+                  <Button size="sm" variant="outline" className="text-[#6A82A0] border-[#EEF2F8] hover:bg-[#F8FAFD] h-8 w-8 p-0" onClick={() => handleToggleActive(a)}>
                     {a.isActive ? <ToggleRight className="h-4 w-4 text-[#22C55E]" /> : <ToggleLeft className="h-4 w-4" />}
                   </Button>
-                  <Button size="sm" variant="outline" className="text-[#0066FF] border-[#EEF2F8]" onClick={() => openEdit(a)}>
+                  <Button size="sm" variant="outline" className="text-[#0066FF] border-[#EEF2F8] h-8 w-8 p-0" onClick={() => openEdit(a)}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="outline" className="text-[#EF4444] border-[#EEF2F8]" onClick={() => setDeleteTarget(a)}>
+                  <Button size="sm" variant="outline" className="text-[#EF4444] border-[#EEF2F8] h-8 w-8 p-0" onClick={() => setDeleteTarget(a)}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -165,7 +217,7 @@ export function AdminAnnouncements() {
             </div>
           );
         })}
-        {!announcements?.length && (
+        {filtered.length === 0 && (
           <div className="bg-white p-12 rounded-xl border border-[#EEF2F8] text-center text-[#6A82A0] font-mono text-sm shadow-sm">
             No announcements. Create one above.
           </div>
@@ -175,7 +227,7 @@ export function AdminAnnouncements() {
       {/* Create/Edit Dialog */}
       {dialogMode && (
         <Dialog open onOpenChange={() => setDialogMode(null)}>
-          <DialogContent className="bg-white text-[#0F1923] border-[#EEF2F8] max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogContent className="bg-white text-[#0F1923] border-[#EEF2F8] max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{dialogMode === "create" ? "New Announcement" : "Edit Announcement"}</DialogTitle>
             </DialogHeader>
@@ -195,8 +247,11 @@ export function AdminAnnouncements() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger className="bg-[#F8FAFD] border-[#EEF2F8]"><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="banner">Banner</SelectItem>
-                          <SelectItem value="popup">Popup</SelectItem>
+                          {ANNOUNCEMENT_TYPES.map(t => (
+                            <SelectItem key={t.value} value={t.value}>
+                              <div className="flex items-center gap-2" style={{ color: t.color }}>{t.icon}<span>{t.label}</span></div>
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </FormItem>
@@ -206,10 +261,7 @@ export function AdminAnnouncements() {
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger className="bg-[#F8FAFD] border-[#EEF2F8]"><SelectValue /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="all">All Users</SelectItem>
-                          <SelectItem value="kyc_approved">KYC Approved</SelectItem>
-                          <SelectItem value="kyc_pending">KYC Pending</SelectItem>
-                          <SelectItem value="no_kyc">No KYC</SelectItem>
+                          {AUDIENCE_OPTIONS.map(a => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </FormItem>

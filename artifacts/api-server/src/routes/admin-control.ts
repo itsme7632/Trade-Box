@@ -3,11 +3,27 @@ import { db, usersTable, transactionsTable, investmentsTable, announcementsTable
 import { eq, sql, and, gte, lt } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { requireAuth, requireAdmin } from "../lib/auth";
-import { audit, getClientIp } from "../lib/audit";
+import { audit, getClientIp, getAuditLog } from "../lib/audit";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, "../../uploads");
+
+// Ensure uploads directory exists
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
+
+// ── Auto-migrate is_archived column ──────────────────────────────────────────
+(async () => {
+  try {
+    await db.execute(sql`ALTER TABLE shipments ADD COLUMN IF NOT EXISTS is_archived INTEGER NOT NULL DEFAULT 0`);
+  } catch (_e) {}
+})();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +70,36 @@ async function getReferralChain(userId: number): Promise<{ traderId: string; gui
     depth++;
   }
   return chain;
+}
+
+function serializePlan(p: any, invCountByPlan: Map<number, number>, invVolByPlan: Map<number, number>) {
+  return {
+    id: p.id,
+    title: p.title,
+    cargoType: p.cargoType,
+    origin: p.origin,
+    destination: p.destination,
+    profitPercent: Number(p.profitPercent),
+    riskGrade: p.riskGrade,
+    fundingGoal: Number(p.fundingGoal),
+    fundingRaised: Number(p.fundingRaised),
+    minInvestment: Number(p.minInvestment),
+    departureDate: p.departureDate instanceof Date ? p.departureDate.toISOString() : p.departureDate,
+    arrivalDate: p.arrivalDate instanceof Date ? p.arrivalDate.toISOString() : p.arrivalDate,
+    transitDays: p.transitDays,
+    status: p.status,
+    freightForwarder: p.freightForwarder,
+    vesselName: p.vesselName,
+    hsCode: p.hsCode ?? null,
+    weightTons: p.weightTons ? Number(p.weightTons) : null,
+    volumeCbm: p.volumeCbm ? Number(p.volumeCbm) : null,
+    description: p.description ?? null,
+    isFeatured: p.isFeatured === 1,
+    isArchived: (p as any).is_archived === 1 || (p as any).isArchived === 1,
+    investorCount: invCountByPlan.get(p.id) ?? 0,
+    investorVolume: Math.round((invVolByPlan.get(p.id) ?? 0) * 100) / 100,
+    createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+  };
 }
 
 // ── ENHANCED USERS LIST ───────────────────────────────────────────────────────
@@ -382,10 +428,51 @@ function serializeSettings(s: typeof platformSettingsTable.$inferSelect) {
   };
 }
 
+// ── BRANDING UPLOAD ───────────────────────────────────────────────────────────
+
+router.post("/upload/branding", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
+
+  const parsed = z.object({
+    fileData: z.string().min(1),
+    fileName: z.string().min(1),
+    type: z.enum(["logo", "favicon"]),
+  }).safeParse(req.body);
+
+  if (!parsed.success) { res.status(400).json({ error: "fileData, fileName, and type are required" }); return; }
+
+  const { fileData, fileName, type } = parsed.data;
+
+  const base64Data = fileData.includes(",") ? fileData.split(",")[1] : fileData;
+  const ext = path.extname(fileName).toLowerCase() || (type === "favicon" ? ".ico" : ".png");
+  const safeName = `${type}-${Date.now()}${ext}`;
+  const filePath = path.join(UPLOADS_DIR, safeName);
+
+  try {
+    fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+  } catch {
+    res.status(500).json({ error: "Failed to save file" }); return;
+  }
+
+  const url = `/api/uploads/${safeName}`;
+  const settingKey = type === "logo" ? "logoUrl" : "faviconUrl";
+
+  const existing = await db.select().from(platformSettingsTable).limit(1);
+  if (existing.length === 0) {
+    await db.insert(platformSettingsTable).values({ [settingKey]: url } as any);
+  } else {
+    await db.update(platformSettingsTable).set({ [settingKey]: url } as any).where(eq(platformSettingsTable.id, existing[0].id));
+  }
+
+  audit({ event: "branding_uploaded", userId: adminId, ip, detail: { type, url } });
+  res.json({ url, settingKey });
+});
+
 // ── PLAN MANAGEMENT ───────────────────────────────────────────────────────────
 
 router.get("/plans", async (_req, res) => {
-  const plans = await db.select().from(shipmentsTable);
+  const plans = await db.execute(sql`SELECT * FROM shipments`);
   const allInvs = await db.select({ shipmentId: investmentsTable.shipmentId, amount: investmentsTable.amount })
     .from(investmentsTable);
   const invCountByPlan = new Map<number, number>();
@@ -394,66 +481,153 @@ router.get("/plans", async (_req, res) => {
     invCountByPlan.set(inv.shipmentId, (invCountByPlan.get(inv.shipmentId) ?? 0) + 1);
     invVolByPlan.set(inv.shipmentId, (invVolByPlan.get(inv.shipmentId) ?? 0) + Number(inv.amount));
   }
-  res.json(plans.map(p => ({
-    id: p.id,
-    title: p.title,
-    cargoType: p.cargoType,
-    origin: p.origin,
-    destination: p.destination,
-    profitPercent: Number(p.profitPercent),
-    riskGrade: p.riskGrade,
-    fundingGoal: Number(p.fundingGoal),
-    fundingRaised: Number(p.fundingRaised),
-    minInvestment: Number(p.minInvestment),
-    departureDate: p.departureDate.toISOString(),
-    arrivalDate: p.arrivalDate.toISOString(),
-    transitDays: p.transitDays,
-    status: p.status,
-    freightForwarder: p.freightForwarder,
-    vesselName: p.vesselName,
-    hsCode: p.hsCode ?? null,
-    weightTons: p.weightTons ? Number(p.weightTons) : null,
-    volumeCbm: p.volumeCbm ? Number(p.volumeCbm) : null,
-    description: p.description ?? null,
-    isFeatured: p.isFeatured === 1,
-    isArchived: (p as any).isArchived === 1,
-    investorCount: invCountByPlan.get(p.id) ?? 0,
-    investorVolume: Math.round((invVolByPlan.get(p.id) ?? 0) * 100) / 100,
-    createdAt: p.createdAt.toISOString(),
-  })));
+  res.json((plans.rows as any[]).map(p => serializePlan(p, invCountByPlan, invVolByPlan)));
+});
+
+const PlanEditBody = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  vesselName: z.string().optional(),
+  origin: z.string().optional(),
+  destination: z.string().optional(),
+  riskGrade: z.string().optional(),
+  profitPercent: z.number().min(0.1).max(100).optional(),
+  fundingGoal: z.number().positive().optional(),
+  minInvestment: z.number().positive().optional(),
+  departureDate: z.string().optional(),
+  arrivalDate: z.string().optional(),
+  cargoType: z.string().optional(),
+  freightForwarder: z.string().optional(),
+  isFeatured: z.boolean().optional(),
+});
+
+router.patch("/plans/:id", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
+  const id = parseInt(req.params.id);
+  const parsed = PlanEditBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() }); return; }
+
+  const d = parsed.data;
+  const updates: Record<string, unknown> = {};
+  if (d.title !== undefined) updates.title = d.title;
+  if (d.description !== undefined) updates.description = d.description;
+  if (d.vesselName !== undefined) updates.vessel_name = d.vesselName;
+  if (d.origin !== undefined) updates.origin = d.origin;
+  if (d.destination !== undefined) updates.destination = d.destination;
+  if (d.riskGrade !== undefined) updates.risk_grade = d.riskGrade;
+  if (d.profitPercent !== undefined) updates.profit_percent = String(d.profitPercent);
+  if (d.fundingGoal !== undefined) updates.funding_goal = String(d.fundingGoal);
+  if (d.minInvestment !== undefined) updates.min_investment = String(d.minInvestment);
+  if (d.departureDate !== undefined) updates.departure_date = new Date(d.departureDate);
+  if (d.arrivalDate !== undefined) {
+    const dep = d.departureDate ? new Date(d.departureDate) : undefined;
+    const arr = new Date(d.arrivalDate);
+    updates.arrival_date = arr;
+    if (dep) {
+      const days = Math.max(1, Math.ceil((arr.getTime() - dep.getTime()) / 86400000));
+      updates.transit_days = days;
+    }
+  }
+  if (d.cargoType !== undefined) updates.cargo_type = d.cargoType;
+  if (d.freightForwarder !== undefined) updates.freight_forwarder = d.freightForwarder;
+  if (d.isFeatured !== undefined) updates.is_featured = d.isFeatured ? 1 : 0;
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+
+  const setParts = Object.entries(updates).map(([col, val]) => sql`${sql.raw(col)} = ${val}`);
+  await db.execute(sql`UPDATE shipments SET ${sql.join(setParts, sql`, `)} WHERE id = ${id}`);
+
+  const rows = await db.execute(sql`SELECT * FROM shipments WHERE id = ${id}`);
+  const p = (rows.rows as any[])[0];
+  if (!p) { res.status(404).json({ error: "Plan not found" }); return; }
+
+  const emptyMap = new Map<number, number>();
+  audit({ event: "plan_edited", userId: adminId, ip, detail: { planId: id, changes: Object.keys(d) } });
+  res.json(serializePlan(p, emptyMap, emptyMap));
 });
 
 router.post("/plans/:id/toggle-featured", async (req, res) => {
   const adminId = (req as any).user.userId;
   const id = parseInt(req.params.id);
-  const [plan] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+  const rows = await db.execute(sql`SELECT * FROM shipments WHERE id = ${id}`);
+  const plan = (rows.rows as any[])[0];
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
-  const newFeatured = plan.isFeatured === 1 ? 0 : 1;
-  await db.update(shipmentsTable).set({ isFeatured: newFeatured }).where(eq(shipmentsTable.id, id));
+  const newFeatured = plan.is_featured === 1 ? 0 : 1;
+  await db.execute(sql`UPDATE shipments SET is_featured = ${newFeatured} WHERE id = ${id}`);
   audit({ event: "plan_featured_toggled", userId: adminId, detail: { planId: id, isFeatured: newFeatured === 1 } });
   res.json({ success: true, isFeatured: newFeatured === 1 });
 });
 
 router.post("/plans/:id/activate", async (req, res) => {
   const adminId = (req as any).user.userId;
-  const id = parseInt(req.params.id);
-  const [plan] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+  const rows = await db.execute(sql`SELECT * FROM shipments WHERE id = ${parseInt(req.params.id)}`);
+  const plan = (rows.rows as any[])[0];
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
   if (plan.status === "delivered") { res.status(400).json({ error: "Cannot reactivate a delivered plan" }); return; }
-  await db.update(shipmentsTable).set({ status: "open" }).where(eq(shipmentsTable.id, id));
-  audit({ event: "plan_activated", userId: adminId, detail: { planId: id } });
+  await db.execute(sql`UPDATE shipments SET status = 'open' WHERE id = ${parseInt(req.params.id)}`);
+  audit({ event: "plan_activated", userId: adminId, detail: { planId: parseInt(req.params.id) } });
   res.json({ success: true, status: "open" });
 });
 
 router.post("/plans/:id/deactivate", async (req, res) => {
   const adminId = (req as any).user.userId;
-  const id = parseInt(req.params.id);
-  const [plan] = await db.select().from(shipmentsTable).where(eq(shipmentsTable.id, id)).limit(1);
+  const rows = await db.execute(sql`SELECT * FROM shipments WHERE id = ${parseInt(req.params.id)}`);
+  const plan = (rows.rows as any[])[0];
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
   if (plan.status === "delivered") { res.status(400).json({ error: "Plan already delivered" }); return; }
-  await db.update(shipmentsTable).set({ status: "funded" }).where(eq(shipmentsTable.id, id));
-  audit({ event: "plan_deactivated", userId: adminId, detail: { planId: id } });
+  await db.execute(sql`UPDATE shipments SET status = 'funded' WHERE id = ${parseInt(req.params.id)}`);
+  audit({ event: "plan_deactivated", userId: adminId, detail: { planId: parseInt(req.params.id) } });
   res.json({ success: true, status: "funded" });
+});
+
+router.post("/plans/:id/duplicate", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
+  const id = parseInt(req.params.id);
+  const rows = await db.execute(sql`SELECT * FROM shipments WHERE id = ${id}`);
+  const plan = (rows.rows as any[])[0];
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+
+  const newTitle = `Copy of ${plan.title}`;
+  await db.execute(sql`
+    INSERT INTO shipments (title, cargo_type, origin, destination, origin_coords, destination_coords,
+      profit_percent, risk_grade, funding_goal, funding_raised, min_investment,
+      departure_date, arrival_date, transit_days, status, freight_forwarder, vessel_name,
+      hs_code, weight_tons, volume_cbm, description, is_featured, is_archived)
+    VALUES (
+      ${newTitle}, ${plan.cargo_type}, ${plan.origin}, ${plan.destination},
+      ${plan.origin_coords}, ${plan.destination_coords},
+      ${plan.profit_percent}, ${plan.risk_grade}, ${plan.funding_goal}, '0', ${plan.min_investment},
+      ${plan.departure_date}, ${plan.arrival_date}, ${plan.transit_days}, 'open',
+      ${plan.freight_forwarder}, ${plan.vessel_name},
+      ${plan.hs_code}, ${plan.weight_tons}, ${plan.volume_cbm}, ${plan.description}, 0, 0
+    )
+  `);
+
+  const newRows = await db.execute(sql`SELECT * FROM shipments WHERE title = ${newTitle} ORDER BY id DESC LIMIT 1`);
+  const newPlan = (newRows.rows as any[])[0];
+  const emptyMap = new Map<number, number>();
+
+  audit({ event: "plan_duplicated", userId: adminId, ip, detail: { originalPlanId: id, newTitle } });
+  res.json(serializePlan(newPlan, emptyMap, emptyMap));
+});
+
+router.post("/plans/:id/archive", async (req, res) => {
+  const adminId = (req as any).user.userId;
+  const ip = getClientIp(req);
+  const id = parseInt(req.params.id);
+  const rows = await db.execute(sql`SELECT * FROM shipments WHERE id = ${id}`);
+  const plan = (rows.rows as any[])[0];
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+  const isCurrentlyArchived = plan.is_archived === 1;
+  await db.execute(sql`UPDATE shipments SET is_archived = ${isCurrentlyArchived ? 0 : 1} WHERE id = ${id}`);
+  audit({
+    event: isCurrentlyArchived ? "plan_unarchived" : "plan_archived",
+    userId: adminId, ip,
+    detail: { planId: id }
+  });
+  res.json({ success: true, isArchived: !isCurrentlyArchived });
 });
 
 // ── ANNOUNCEMENTS ─────────────────────────────────────────────────────────────
@@ -461,8 +635,8 @@ router.post("/plans/:id/deactivate", async (req, res) => {
 const AnnouncementBody = z.object({
   title: z.string().min(1),
   message: z.string().min(1),
-  type: z.enum(["popup", "banner"]).default("banner"),
-  targetAudience: z.enum(["all", "kyc_approved", "kyc_pending", "no_kyc"]).default("all"),
+  type: z.string().default("banner"),
+  targetAudience: z.string().default("all"),
   isActive: z.boolean().default(true),
   scheduledAt: z.string().datetime().optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
@@ -536,6 +710,47 @@ function serializeAnnouncement(a: typeof announcementsTable.$inferSelect) {
   };
 }
 
+// ── AUDIT LOG VIEWER ──────────────────────────────────────────────────────────
+
+router.get("/audit-logs", async (req, res) => {
+  const { search, action, startDate, endDate } = req.query as Record<string, string>;
+  let logs = getAuditLog();
+
+  if (action) logs = logs.filter(l => l.event === action);
+  if (search) {
+    const s = search.toLowerCase();
+    logs = logs.filter(l =>
+      l.event.toLowerCase().includes(s) ||
+      (l.targetUser ?? "").toLowerCase().includes(s) ||
+      (l.ip ?? "").toLowerCase().includes(s) ||
+      (l.adminTraderId ?? "").toLowerCase().includes(s)
+    );
+  }
+  if (startDate) {
+    const start = new Date(startDate);
+    logs = logs.filter(l => new Date(l.timestamp) >= start);
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    logs = logs.filter(l => new Date(l.timestamp) <= end);
+  }
+
+  const adminIds = [...new Set(logs.filter(l => l.adminId).map(l => l.adminId!))];
+  const adminMap = new Map<number, string>();
+  if (adminIds.length > 0) {
+    const admins = await db.select({ id: usersTable.id, traderId: usersTable.traderId })
+      .from(usersTable)
+      .where(sql`${usersTable.id} = ANY(ARRAY[${sql.join(adminIds.map(id => sql`${id}`), sql`, `)}])`);
+    for (const a of admins) adminMap.set(a.id, a.traderId);
+  }
+
+  res.json(logs.map(l => ({
+    ...l,
+    adminTraderId: l.adminId ? adminMap.get(l.adminId) ?? `Admin#${l.adminId}` : null,
+  })));
+});
+
 // ── ENHANCED STATS ────────────────────────────────────────────────────────────
 
 router.get("/analytics", async (_req, res) => {
@@ -546,7 +761,7 @@ router.get("/analytics", async (_req, res) => {
 
   const allUsers = await db.select().from(usersTable);
   const allTxs = await db.select().from(transactionsTable);
-  const allShipments = await db.select().from(shipmentsTable);
+  const allShipments = await db.execute(sql`SELECT status FROM shipments`);
   const kycs = await db.select().from(kycTable);
 
   const totalUsers = allUsers.filter(u => u.role === "user").length;
@@ -575,8 +790,9 @@ router.get("/analytics", async (_req, res) => {
   const totalCommissionsPaid = allTxs.filter(t => t.type === "guild_commission" && t.status === "cleared")
     .reduce((acc, t) => acc + Number(t.amount), 0);
 
-  const activeShipments = allShipments.filter(s => ["open", "funded", "in_transit"].includes(s.status)).length;
-  const openPlans = allShipments.filter(s => s.status === "open").length;
+  const shipmentRows = allShipments.rows as any[];
+  const activeShipments = shipmentRows.filter((s: any) => ["open", "funded", "in_transit"].includes(s.status)).length;
+  const openPlans = shipmentRows.filter((s: any) => s.status === "open").length;
 
   res.json({
     users: { total: totalUsers, active: activeUsers, suspended: suspendedUsers, banned: bannedUsers, registrationsToday },

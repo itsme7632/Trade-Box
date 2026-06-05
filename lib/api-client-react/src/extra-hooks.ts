@@ -238,6 +238,7 @@ export interface AdminPlan {
   status: string;
   freightForwarder: string;
   vesselName: string;
+  description: string | null;
   isFeatured: boolean;
   isArchived: boolean;
   investorCount: number;
@@ -254,6 +255,17 @@ export interface AdminAnalytics {
   };
   pending: { deposits: number; withdrawals: number; kyc: number };
   shipments: { active: number; open: number };
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  event: string;
+  adminId?: number;
+  adminTraderId?: string;
+  targetUser?: string;
+  ip?: string;
+  detail?: Record<string, unknown>;
 }
 
 export function useAdminListUsersV2(params?: { search?: string; kycStatus?: string; status?: string; role?: string }) {
@@ -418,6 +430,33 @@ export function useAdminDeactivatePlan() {
   });
 }
 
+export function useAdminEditPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & Partial<AdminPlan>) =>
+      customFetch<AdminPlan>(`/api/admin/plans/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/plans"] }),
+  });
+}
+
+export function useAdminDuplicatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      customFetch<AdminPlan>(`/api/admin/plans/${id}/duplicate`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/plans"] }),
+  });
+}
+
+export function useAdminArchivePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      customFetch<{ success: boolean }>(`/api/admin/plans/${id}/archive`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/plans"] }),
+  });
+}
+
 export function useAdminGetAnnouncements() {
   return useQuery({
     queryKey: ["/api/admin/announcements"],
@@ -457,6 +496,31 @@ export function useAdminAnalytics() {
     queryKey: ["/api/admin/analytics"],
     queryFn: () => customFetch<AdminAnalytics>("/api/admin/analytics"),
     refetchInterval: 30000,
+  });
+}
+
+export function useAdminGetAuditLogs(params?: { search?: string; action?: string; startDate?: string; endDate?: string }) {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.action) query.set("action", params.action);
+  if (params?.startDate) query.set("startDate", params.startDate);
+  if (params?.endDate) query.set("endDate", params.endDate);
+  return useQuery({
+    queryKey: ["/api/admin/audit-logs", params],
+    queryFn: () => customFetch<AuditLogEntry[]>(`/api/admin/audit-logs?${query.toString()}`),
+    refetchInterval: 15000,
+  });
+}
+
+export function useAdminUploadBranding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileData, fileName, type }: { fileData: string; fileName: string; type: "logo" | "favicon" }) =>
+      customFetch<{ url: string; settingKey: string }>("/api/admin/upload/branding", {
+        method: "POST",
+        body: JSON.stringify({ fileData, fileName, type }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/settings"] }),
   });
 }
 
