@@ -45,7 +45,8 @@ router.get("/my-shipments", requireAuth, async (req, res) => {
 
 router.get("/port-activity", async (_req, res) => {
   const activity = await db.select().from(portActivityTable)
-    .orderBy(portActivityTable.timestamp);
+    .orderBy(portActivityTable.timestamp)
+    .then(rows => rows.reverse());
 
   res.json(activity.map((a) => ({
     id: a.id,

@@ -19,7 +19,9 @@ router.get("/", async (_req, res) => {
     message: a.message,
     type: a.type,
     targetAudience: a.targetAudience,
+    scheduledAt: a.scheduledAt?.toISOString() ?? null,
     expiresAt: a.expiresAt?.toISOString() ?? null,
+    createdAt: a.createdAt.toISOString(),
   })));
 });
 

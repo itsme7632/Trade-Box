@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useGetProfile, useUpdateProfile } from "@workspace/api-client-react";
+import { useGetProfile, useUpdateProfile, useGetBalance } from "@workspace/api-client-react";
 import { useChangePassword } from "@workspace/api-client-react/src/extra-hooks";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,9 +7,9 @@ import { z } from "zod";
 import {
   User, Bell, Shield, Key, LogOut, ChevronRight,
   Camera, Smartphone, HelpCircle, Lock,
-  EyeOff, Eye, Star, TrendingUp, Ship, Zap,
+  EyeOff, Eye, TrendingUp, Ship, Zap,
   Settings, MapPin, AtSign, Globe,
-  RefreshCw
+  Wallet, Users, DollarSign
 } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -169,9 +169,11 @@ export default function ProfilePage() {
     ? (((profile as any).firstName[0] || "") + ((profile as any).lastName?.[0] || "")).toUpperCase()
     : (profile?.email?.charAt(0).toUpperCase() || "T");
 
+  const { data: balance } = useGetBalance();
+
   const stats = [
-    { label: "Shipped",   value: `$${((profile?.traderStats?.totalShipped ?? 0)).toLocaleString()}`,         color: "#2563eb", icon: Ship      },
-    { label: "Profit",    value: `+$${(profile?.traderStats?.totalProfit ?? 0).toLocaleString()}`,           color: "#059669", icon: TrendingUp },
+    { label: "Shipped",   value: `${((profile?.traderStats?.totalShipped ?? 0)).toLocaleString()} USDT`,    color: "#2563eb", icon: Ship      },
+    { label: "Profit",    value: `+${(profile?.traderStats?.totalProfit ?? 0).toLocaleString()} USDT`,      color: "#059669", icon: TrendingUp },
     { label: "Active",    value: String(profile?.traderStats?.activeInvestments ?? 0),                      color: "#d97706", icon: Zap       },
     { label: "Countries", value: String(profile?.traderStats?.countriesTraded ?? 0),                        color: "#7c3aed", icon: Globe     },
   ];
@@ -221,10 +223,10 @@ export default function ProfilePage() {
                     {(profile as any)?.country && ` · ${(profile as any).country}`}
                   </p>
                 </div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "#ecfdf5" : "#fffbeb", border: `1px solid ${profile?.twoFactorEnabled ? "#a7f3d0" : "#fde68a"}`, flexShrink: 0 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "#ecfdf5" : "#f1f5f9", border: `1px solid ${profile?.twoFactorEnabled ? "#a7f3d0" : "#e2e8f0"}`, flexShrink: 0 }}>
                   {profile?.twoFactorEnabled
                     ? <><Shield size={10} color="#059669" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#059669", fontFamily: "'JetBrains Mono', monospace" }}>2FA ON</span></>
-                    : <><Star size={10} color="#d97706" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#d97706", fontFamily: "'JetBrains Mono', monospace" }}>PRO</span></>
+                    : <><Shield size={10} color="#94a3b8" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>2FA OFF</span></>
                   }
                 </div>
               </div>
@@ -235,13 +237,37 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "14px" }}>
             {stats.map((s, i) => (
-              <div key={i} style={{ padding: "10px 8px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2", textAlign: "center" }}>
-                <div style={{ fontSize: "13px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif" }}>{s.value}</div>
+              <div key={i} style={{ padding: "10px 6px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2", textAlign: "center" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.value}</div>
                 <div style={{ fontSize: "8px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "2px" }}>{s.label}</div>
               </div>
             ))}
+          </div>
+
+          {/* Balance strip */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div style={{ padding: "12px 14px", borderRadius: "14px", background: "linear-gradient(135deg, #eff6ff, #dbeafe)", border: "1px solid #bfdbfe" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "5px" }}>
+                <Wallet size={11} color="#2563eb" />
+                <span style={{ fontSize: "9px", fontWeight: 600, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>Available</span>
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 700, color: "#1e40af", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+                {(balance?.balance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: "9px", color: "#3b82f6", fontFamily: "'JetBrains Mono', monospace" }}>USDT balance</div>
+            </div>
+            <div style={{ padding: "12px 14px", borderRadius: "14px", background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", border: "1px solid #a7f3d0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "5px" }}>
+                <DollarSign size={11} color="#059669" />
+                <span style={{ fontSize: "9px", fontWeight: 600, color: "#059669", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>Total Profit</span>
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 700, color: "#065f46", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+                +{(profile?.traderStats?.totalProfit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: "9px", color: "#10b981", fontFamily: "'JetBrains Mono', monospace" }}>USDT earned</div>
+            </div>
           </div>
         </div>
       </div>
@@ -276,7 +302,9 @@ export default function ProfilePage() {
 
             <Card>
               <CardHeader icon={Settings} title="Preferences" color="#7c3aed" />
-              <Row icon={Bell} label="Notifications" value="Alerts & activity" color="#d97706" onClick={() => toast({ title: "Coming soon" })} />
+              <Row icon={Users} label="Referral Guild" value="Network, commissions & rank" color="#7c3aed" onClick={() => setLocation("/referrals")} />
+              <Div />
+              <Row icon={Bell} label="Notifications" value="Alerts & announcements" color="#d97706" onClick={() => setLocation("/notifications")} />
             </Card>
 
             <Card>

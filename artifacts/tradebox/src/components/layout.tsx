@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/components/auth-context";
-import { BarChart2, Ship, Wallet, Map, User, Anchor, Users, ShieldAlert, LogOut } from "lucide-react";
+import { BarChart2, Ship, Wallet, Map, User, Anchor, Users, ShieldAlert, LogOut, Bell } from "lucide-react";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -155,7 +155,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               TradeBox
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{
               display: "flex", alignItems: "center", gap: "5px",
               padding: "4px 10px", borderRadius: "20px",
@@ -166,6 +166,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 Live
               </span>
             </div>
+            <Link href="/notifications">
+              <div style={{ width: "32px", height: "32px", borderRadius: "10px", background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <Bell size={15} color="#64748b" />
+              </div>
+            </Link>
             <Link href="/profile">
               <div style={{
                 height: "32px", width: "32px", borderRadius: "50%",

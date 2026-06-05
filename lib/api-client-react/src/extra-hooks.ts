@@ -463,7 +463,7 @@ export function useAdminAnalytics() {
 export function usePublicAnnouncements() {
   return useQuery({
     queryKey: ["/api/announcements"],
-    queryFn: () => customFetch<{ id: number; title: string; message: string; type: string; targetAudience: string; expiresAt: string | null }[]>("/api/announcements"),
+    queryFn: () => customFetch<{ id: number; title: string; message: string; type: string; targetAudience: string; scheduledAt: string | null; expiresAt: string | null; createdAt: string }[]>("/api/announcements"),
     refetchInterval: 60000,
   });
 }
