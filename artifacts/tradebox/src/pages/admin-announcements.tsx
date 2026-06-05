@@ -200,6 +200,15 @@ export function AdminAnnouncements() {
                       </>
                     )}
                     <span>Created: {new Date(a.createdAt).toLocaleDateString()}</span>
+                    {(a.views ?? 0) > 0 && (
+                      <span className="flex items-center gap-1.5 border border-[#EEF2F8] px-2 py-0.5 rounded-full bg-[#F8FAFD]">
+                        <span className="text-[#0066FF] font-bold">{a.views} views</span>
+                        <span className="text-[#CBD5E1]">·</span>
+                        <span>{a.dismissals ?? 0} dismissed</span>
+                        <span className="text-[#CBD5E1]">·</span>
+                        <span className="text-[#22C55E] font-bold">{a.openRate ?? 0}% open rate</span>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1.5 shrink-0">

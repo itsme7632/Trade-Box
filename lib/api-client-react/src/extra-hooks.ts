@@ -219,6 +219,9 @@ export interface Announcement {
   createdBy: number | null;
   createdAt: string;
   updatedAt: string;
+  views?: number;
+  dismissals?: number;
+  openRate?: number;
 }
 
 export interface AdminPlan {

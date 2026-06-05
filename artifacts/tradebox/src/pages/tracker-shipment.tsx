@@ -3,12 +3,12 @@ import { useGetTrackerShipments, useGetShipment } from "@workspace/api-client-re
 import {
   ArrowLeft, Ship, MapPin, Calendar, Package, Clock, ArrowRight,
   CheckCircle2, AlertTriangle, Download, MessageSquare, Hash,
-  Navigation, Anchor, RefreshCw, TrendingUp, ChevronRight
+  Navigation, Anchor, RefreshCw, TrendingUp, ChevronRight, Globe
 } from "lucide-react";
 import { format, parseISO, addDays } from "date-fns";
 import { useTrackerPositions } from "@/hooks/use-socket";
 
-// ─── constants ─────────────────────────────────────────────────────────────────
+// ─── constants ──────────────────────────────────────────────────────────────
 
 const cargoColors: Record<string, string> = {
   electronics: "#2563eb", cocoa: "#92400e", coffee: "#78350f",
@@ -22,26 +22,76 @@ const cargoEmoji: Record<string, string> = {
   pharma: "💊", steel: "⚙️",
 };
 
-// 7-step journey timeline
 const TIMELINE = [
-  { key: "booked",    label: "Booked",   desc: "Shipment booking confirmed",            threshold: 0   },
-  { key: "loaded",    label: "Loaded",   desc: "Container loaded at origin port",        threshold: 5   },
-  { key: "departed",  label: "Departed", desc: "Vessel departed origin port",            threshold: 12  },
-  { key: "at_sea",    label: "At Sea",   desc: "Vessel navigating open waters",          threshold: 18  },
-  { key: "customs",   label: "Customs",  desc: "Customs inspection at destination port", threshold: 75  },
-  { key: "arrived",   label: "Arrived",  desc: "Vessel berthed at destination port",     threshold: 90  },
-  { key: "delivered", label: "Delivered","desc": "Cargo transferred to consignee",       threshold: 100 },
+  { key: "booked",    label: "Booked",    desc: "Shipment booking confirmed",                threshold: 0   },
+  { key: "loaded",    label: "Loaded",    desc: "Container loaded at origin port",            threshold: 5   },
+  { key: "departed",  label: "Departed",  desc: "Vessel departed origin port",                threshold: 12  },
+  { key: "at_sea",   label: "At Sea",    desc: "Vessel navigating open waters",               threshold: 18  },
+  { key: "customs",   label: "Customs",   desc: "Customs inspection at destination port",     threshold: 75  },
+  { key: "arrived",   label: "Arrived",   desc: "Vessel berthed at destination port",         threshold: 90  },
+  { key: "delivered", label: "Delivered", desc: "Cargo transferred to consignee",             threshold: 100 },
 ];
 
-function getCurrentStageIdx(pct: number) {
-  let idx = 0;
-  for (let i = 0; i < TIMELINE.length; i++) {
-    if (pct >= TIMELINE[i].threshold) idx = i;
+// ─── Date-based stage calculation ───────────────────────────────────────────
+
+/**
+ * Derives the current timeline stage from actual shipment dates.
+ * This ensures the timeline always reflects real calendar state,
+ * never showing "Departed" when departure is still in the future.
+ */
+function getStageFromDates(
+  depDate: Date | null,
+  arrDate: Date | null,
+  pct: number
+): number {
+  const now = new Date();
+
+  if (!depDate || !arrDate) {
+    // fallback to pct thresholds
+    let idx = 0;
+    for (let i = 0; i < TIMELINE.length; i++) {
+      if (pct >= TIMELINE[i].threshold) idx = i;
+    }
+    return idx;
   }
-  return idx;
+
+  // Before departure: Booked, or Loaded if <24h away
+  if (now < depDate) {
+    const hoursToDepart = (depDate.getTime() - now.getTime()) / 3600000;
+    return hoursToDepart <= 24 ? 1 : 0;
+  }
+
+  // After arrival date
+  if (now >= arrDate) {
+    return pct >= 100 ? 6 : 5;
+  }
+
+  // During transit — use elapsed ratio for sub-stages
+  const total = arrDate.getTime() - depDate.getTime();
+  const elapsed = now.getTime() - depDate.getTime();
+  const ratio = Math.max(0, Math.min(1, elapsed / total));
+
+  if (ratio >= 0.90) return 5; // Arrived
+  if (ratio >= 0.72) return 4; // Customs
+  if (ratio >= 0.10) return 3; // At Sea
+  return 2;                    // Departed
 }
 
-// Deterministic container number from shipment id
+/**
+ * Calculate journey progress percent from actual dates.
+ */
+function progressFromDates(depDate: Date | null, arrDate: Date | null): number {
+  if (!depDate || !arrDate) return 0;
+  const now = Date.now();
+  const departure = depDate.getTime();
+  const arrival = arrDate.getTime();
+  if (now < departure) return 0;
+  if (now >= arrival) return 100;
+  return Math.round(((now - departure) / (arrival - departure)) * 100);
+}
+
+// ─── Deterministic container number ──────────────────────────────────────────
+
 function containerNum(shipmentId: number, invId: number) {
   const alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const prefix = alpha[(shipmentId * 3 + 7) % 26] + alpha[(invId * 5 + 11) % 26] + alpha[(shipmentId + invId) % 26] + "U";
@@ -49,81 +99,235 @@ function containerNum(shipmentId: number, invId: number) {
   return `${prefix}-${nums}`;
 }
 
-// Generate activity log from progress + known ports
-function buildActivity(pct: number, origin: string, destination: string, now: Date) {
-  const events: Array<{ time: string; title: string; desc: string; color: string; done: boolean }> = [];
+// ─── Activity feed (date-anchored) ───────────────────────────────────────────
+
+function buildActivity(
+  depDate: Date | null,
+  arrDate: Date | null,
+  stageIdx: number,
+  origin: string,
+  destination: string
+) {
   const originCity = origin.split(",")[0];
   const destCity = destination.split(",")[0];
+  const events: Array<{ time: string; title: string; desc: string; color: string }> = [];
 
-  const addEvt = (hoursAgo: number, title: string, desc: string, color: string, threshold: number) => {
-    if (pct >= threshold) {
-      const t = new Date(now.getTime() - hoursAgo * 3600 * 1000);
-      events.push({ time: format(t, "MMM dd, HH:mm"), title, desc, color, done: true });
-    }
-  };
+  const fmt = (d: Date) => format(d, "MMM dd, HH:mm");
 
-  addEvt(0,    "Tracking active",              "Real-time position updates enabled",              "#059669", 0   );
-  addEvt(96,   `Booking confirmed`,            "Shipment booked and confirmed",                   "#2563eb", 0   );
-  addEvt(72,   `Container loaded`,             `Cargo loaded at ${originCity} terminal`,           "#2563eb", 5   );
-  addEvt(60,   `Vessel departed`,              `Left ${originCity} port`,                         "#d97706", 12  );
-  addEvt(48,   "Open sea navigation",          "Vessel transiting international waters",           "#0891b2", 18  );
-  addEvt(8,    "Customs pre-clearance filed",  `Paperwork submitted to ${destCity} authorities`,  "#7c3aed", 70  );
-  addEvt(4,    "Customs inspection",           `Inspection underway at ${destCity} port`,          "#7c3aed", 75  );
-  addEvt(2,    `Arrived at destination`,       `Vessel berthed at ${destCity} port`,              "#059669", 90  );
-  addEvt(0.5,  "Cargo transfer in progress",   "Container being offloaded",                       "#059669", 95  );
-  addEvt(0,    "Delivery confirmed",           `Cargo transferred to consignee`,                  "#059669", 100 );
+  // Booking is always in the past relative to departure
+  if (stageIdx >= 0 && depDate) {
+    const bookingDate = new Date(depDate.getTime() - 4 * 86400000);
+    events.push({ time: fmt(bookingDate), title: "Booking confirmed", desc: "Shipment booked and confirmed", color: "#2563eb" });
+  }
+
+  if (stageIdx >= 1 && depDate) {
+    const loadDate = new Date(depDate.getTime() - 2 * 86400000);
+    events.push({ time: fmt(loadDate), title: "Container loaded", desc: `Cargo loaded at ${originCity} terminal`, color: "#2563eb" });
+  }
+
+  if (stageIdx >= 2 && depDate) {
+    events.push({ time: fmt(depDate), title: "Vessel departed", desc: `Left ${originCity} port`, color: "#d97706" });
+  }
+
+  if (stageIdx >= 3 && depDate) {
+    const seaDate = new Date(depDate.getTime() + 2 * 86400000);
+    events.push({ time: fmt(seaDate), title: "Open sea navigation", desc: "Vessel transiting international waters", color: "#0891b2" });
+  }
+
+  if (stageIdx >= 4 && arrDate) {
+    const customsDate = new Date(arrDate.getTime() - 2 * 86400000);
+    events.push({ time: fmt(customsDate), title: "Customs pre-clearance filed", desc: `Paperwork submitted to ${destCity} authorities`, color: "#7c3aed" });
+    const inspDate = new Date(arrDate.getTime() - 1 * 86400000);
+    events.push({ time: fmt(inspDate), title: "Customs inspection", desc: `Inspection underway at ${destCity} port`, color: "#7c3aed" });
+  }
+
+  if (stageIdx >= 5 && arrDate) {
+    events.push({ time: fmt(arrDate), title: "Arrived at destination", desc: `Vessel berthed at ${destCity} port`, color: "#059669" });
+  }
+
+  if (stageIdx >= 6 && arrDate) {
+    const delivDate = new Date(arrDate.getTime() + 86400000);
+    events.push({ time: fmt(delivDate), title: "Delivery confirmed", desc: `Cargo transferred to consignee`, color: "#059669" });
+  }
 
   return events.reverse();
 }
 
-// ─── Skeleton ──────────────────────────────────────────────────────────────────
+// ─── PDF Generator ────────────────────────────────────────────────────────────
+
+async function downloadPdf(data: {
+  vesselName: string;
+  containerNum: string;
+  cargoType: string;
+  origin: string;
+  destination: string;
+  pct: number;
+  etaDays: number | null;
+  myAmount: number;
+  invId: number;
+  shipmentId: number;
+  stageLabel: string;
+  profitPercent: string | null;
+  departureDate: Date | null;
+  arrivalDate: Date | null;
+  actFeed: Array<{ time: string; title: string; desc: string }>;
+}) {
+  const { default: jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = 210;
+  const margin = 14;
+  let y = 0;
+
+  // ── Header band ──
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, W, 32, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("TradeBox", margin, 14);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text("GLOBAL TRADE FINANCE PORTAL", margin, 20);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text("SHIPMENT REPORT", W - margin, 14, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(148, 163, 184);
+  doc.text(`INV-${String(data.invId).padStart(5, "0")}`, W - margin, 20, { align: "right" });
+
+  y = 40;
+
+  // ── Helper: section header ──
+  const sectionHeader = (label: string) => {
+    doc.setFillColor(239, 246, 255);
+    doc.rect(margin, y, W - margin * 2, 7, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(37, 99, 235);
+    doc.text(label.toUpperCase(), margin + 3, y + 5);
+    y += 11;
+  };
+
+  // ── Helper: two-col row ──
+  const row2 = (label: string, value: string) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(label, margin + 2, y);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.text(value || "—", margin + 55, y);
+    y += 6;
+  };
+
+  // ── Shipment details ──
+  sectionHeader("Shipment Details");
+  row2("Shipment ID", `INV-${String(data.invId).padStart(5, "0")}`);
+  row2("Container Number", data.containerNum);
+  row2("Vessel", data.vesselName);
+  row2("Cargo Type", data.cargoType.charAt(0).toUpperCase() + data.cargoType.slice(1));
+  row2("Origin Port", data.origin);
+  row2("Destination Port", data.destination);
+
+  const locLabel = data.pct >= 90 ? data.destination.split(",")[0]
+    : data.pct >= 12 ? "International Waters"
+    : data.origin.split(",")[0];
+  row2("Current Location", locLabel);
+
+  y += 2;
+
+  // ── Voyage dates ──
+  sectionHeader("Voyage Dates");
+  row2("Departure Date", data.departureDate ? format(data.departureDate, "MMM dd, yyyy") : "—");
+  row2("ETA (Arrival)", data.arrivalDate ? format(data.arrivalDate, "MMM dd, yyyy") : data.etaDays != null ? `${data.etaDays} days` : "—");
+  y += 2;
+
+  // ── Investment ──
+  sectionHeader("Investment Summary");
+  row2("Investment Amount", `${data.myAmount.toLocaleString()} USDT`);
+  row2("Expected Return", data.profitPercent ? `+${data.profitPercent}% APY` : "—");
+  if (data.profitPercent) {
+    const profit = data.myAmount * (parseFloat(data.profitPercent) / 100);
+    row2("Estimated Profit", `${profit.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT`);
+    row2("Total Return", `${(data.myAmount + profit).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT`);
+  }
+  y += 2;
+
+  // ── Journey timeline ──
+  sectionHeader("Journey Timeline");
+  const stageIdx = TIMELINE.findIndex(s => s.label === data.stageLabel);
+  TIMELINE.forEach((stage, i) => {
+    const done = i < stageIdx;
+    const current = i === stageIdx;
+    const dotX = margin + 4;
+    const dotY = y - 1;
+    if (done) {
+      doc.setFillColor(37, 99, 235);
+      doc.circle(dotX, dotY, 2, "F");
+      doc.setTextColor(37, 99, 235);
+    } else if (current) {
+      doc.setDrawColor(37, 99, 235);
+      doc.setFillColor(255, 255, 255);
+      doc.circle(dotX, dotY, 2, "FD");
+      doc.setTextColor(15, 23, 42);
+    } else {
+      doc.setDrawColor(203, 213, 225);
+      doc.setFillColor(241, 245, 249);
+      doc.circle(dotX, dotY, 2, "FD");
+      doc.setTextColor(148, 163, 184);
+    }
+    doc.setFont("helvetica", current || done ? "bold" : "normal");
+    doc.setFontSize(8);
+    doc.text(stage.label + (current ? " ← Current" : ""), margin + 10, y);
+    y += 6;
+  });
+  y += 2;
+
+  // ── Activity feed (last 5) ──
+  if (data.actFeed.length > 0) {
+    sectionHeader("Recent Activity");
+    data.actFeed.slice(0, 5).forEach(evt => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      const titleLines = doc.splitTextToSize(evt.title, W - margin * 2 - 20);
+      doc.text(titleLines, margin + 3, y);
+      y += titleLines.length * 4.5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(evt.time, margin + 3, y);
+      y += 5;
+    });
+  }
+
+  // ── Footer ──
+  const footerY = 287;
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, footerY - 4, W - margin, footerY - 4);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text("TradeBox Global Trade Finance Portal  ·  support@tradebox.io", margin, footerY);
+  doc.text(`Generated: ${format(new Date(), "MMM dd, yyyy HH:mm")}`, W - margin, footerY, { align: "right" });
+
+  doc.save(`shipment-INV-${String(data.invId).padStart(5, "0")}.pdf`);
+}
+
+// ─── Skeleton ──────────────────────────────────────────────────────────────
 
 function S({ h = 60, radius = 12 }: { h?: number; radius?: number }) {
   return <div className="shimmer" style={{ height: h, borderRadius: radius }} />;
 }
 
-// ─── Download report helper ────────────────────────────────────────────────────
-
-function downloadReport(data: {
-  vesselName: string; containerNum: string; cargoType: string;
-  origin: string; destination: string; pct: number; etaDays: number | null;
-  myAmount: number; invId: number; shipmentId: number;
-}) {
-  const lines = [
-    "TRADEBOX SHIPMENT REPORT",
-    "========================",
-    `Generated: ${new Date().toISOString()}`,
-    "",
-    "SHIPMENT DETAILS",
-    `Investment ID  : #${data.invId}`,
-    `Shipment ID    : #${data.shipmentId}`,
-    `Vessel         : ${data.vesselName}`,
-    `Container      : ${data.containerNum}`,
-    `Cargo Type     : ${data.cargoType}`,
-    `Origin         : ${data.origin}`,
-    `Destination    : ${data.destination}`,
-    "",
-    "PROGRESS",
-    `Current Status : ${data.pct}% complete`,
-    `ETA            : ${data.etaDays != null ? `${data.etaDays} days` : "N/A"}`,
-    "",
-    "INVESTMENT",
-    `Amount         : ${data.myAmount.toLocaleString()} USDT`,
-    "",
-    "---",
-    "TradeBox Global Trade Finance Portal",
-    "support@tradebox.io",
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `tradebox-shipment-${data.invId}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ─── Main ──────────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function TrackerShipmentDetail() {
   const params = useParams<{ id: string }>();
@@ -133,14 +337,9 @@ export default function TrackerShipmentDetail() {
   const { data: trackerShipments, isLoading: listLoading } = useGetTrackerShipments();
   const livePositions = useTrackerPositions();
 
-  // Find the investment row
   const inv = trackerShipments?.find(s => s.id === invId);
-
-  // Get live position override
   const live = livePositions.find(p => p.id === invId);
-  const pct = Math.min(100, Math.max(0, live?.progressPercent ?? inv?.progressPercent ?? 0));
 
-  // Also fetch the market shipment for extra detail (departure/arrival dates, profit %, etc)
   const shipmentId = inv?.shipmentId;
   const { data: mktShipment, isLoading: mktLoading } = useGetShipment(
     shipmentId ?? 0,
@@ -152,7 +351,7 @@ export default function TrackerShipmentDetail() {
   if (isLoading) {
     return (
       <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
-        <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "14px 16px", position: "sticky", top: "56px", zIndex: 10 }}>
+        <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "14px 16px", position: "sticky", top: 0, zIndex: 10 }}>
           <S h={32} radius={8} />
         </div>
         <div style={{ padding: "16px", maxWidth: "760px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -174,29 +373,49 @@ export default function TrackerShipmentDetail() {
     );
   }
 
-  const color      = cargoColors[inv.cargoType] || "#2563eb";
-  const emoji      = cargoEmoji[inv.cargoType] || "📦";
-  const stageIdx   = getCurrentStageIdx(pct);
-  const overdue    = (inv.etaDays ?? 99) <= 0 && pct < 100;
-  const contNum    = containerNum(inv.shipmentId, inv.id);
-  const now        = new Date();
-  const actFeed    = buildActivity(pct, inv.origin, inv.destination, now);
-  const etaDate    = inv.etaDays != null ? addDays(now, inv.etaDays) : null;
-  const depDate    = mktShipment?.departureDate
-    ? (typeof mktShipment.departureDate === "string" ? parseISO(mktShipment.departureDate) : new Date(mktShipment.departureDate))
+  const color = cargoColors[inv.cargoType] || "#2563eb";
+  const emoji = cargoEmoji[inv.cargoType] || "📦";
+  const overdue = (inv.etaDays ?? 99) <= 0;
+
+  // Parse actual dates from market shipment
+  const depDate = mktShipment?.departureDate
+    ? (typeof mktShipment.departureDate === "string"
+      ? parseISO(mktShipment.departureDate)
+      : new Date(mktShipment.departureDate))
     : null;
+
+  const arrDate = mktShipment?.arrivalDate
+    ? (typeof mktShipment.arrivalDate === "string"
+      ? parseISO(mktShipment.arrivalDate)
+      : new Date(mktShipment.arrivalDate))
+    : null;
+
+  // Use date-based progress (live socket overrides only when available)
+  const datePct = progressFromDates(depDate, arrDate);
+  const pct = Math.min(100, Math.max(0, live?.progressPercent ?? datePct ?? inv.progressPercent ?? 0));
+
+  // Date-based stage — never shows Departed if departure is still in the future
+  const stageIdx = getStageFromDates(depDate, arrDate, pct);
+
+  const contNum = containerNum(inv.shipmentId, inv.id);
+  const now = new Date();
+  const etaDate = inv.etaDays != null ? addDays(now, inv.etaDays) : arrDate;
+  const actFeed = buildActivity(depDate, arrDate, stageIdx, inv.origin, inv.destination);
 
   const reportData = {
     vesselName: inv.vesselName, containerNum: contNum, cargoType: inv.cargoType,
     origin: inv.origin, destination: inv.destination, pct,
-    etaDays: inv.etaDays, myAmount: inv.myAmount ?? 0, invId, shipmentId: inv.shipmentId,
+    etaDays: inv.etaDays, myAmount: inv.myAmount ?? 0, invId,
+    shipmentId: inv.shipmentId, stageLabel: TIMELINE[stageIdx].label,
+    profitPercent: mktShipment?.profitPercent ? String(mktShipment.profitPercent) : null,
+    departureDate: depDate, arrivalDate: arrDate, actFeed,
   };
 
   return (
     <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
 
-      {/* Sticky header */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "12px 16px", position: "sticky", top: "56px", zIndex: 10 }}>
+      {/* Sticky sub-header — top: 0 since we're inside main which already starts below layout header */}
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "12px 16px", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", maxWidth: "760px", margin: "0 auto" }}>
           <button onClick={() => navigate("/tracker")} style={{ width: "32px", height: "32px", borderRadius: "9px", background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
             <ArrowLeft size={15} color="#64748b" />
@@ -223,7 +442,6 @@ export default function TrackerShipmentDetail() {
         <div style={{ background: "#ffffff", border: `1px solid ${overdue ? "#fecaca" : "#e8edf2"}`, borderRadius: "18px", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", marginBottom: "12px" }}>
           <div style={{ height: "4px", background: overdue ? "linear-gradient(90deg, #dc2626, #f87171)" : `linear-gradient(90deg, ${color}, ${color}99)` }} />
           <div style={{ padding: "16px" }}>
-            {/* Top row */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "16px" }}>
               <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: `${color}12`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", flexShrink: 0 }}>
                 {emoji}
@@ -248,10 +466,10 @@ export default function TrackerShipmentDetail() {
 
             {/* Progress bar */}
             <div style={{ marginBottom: "14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{inv.origin.split(",")[0]}</span>
-                <span style={{ fontSize: "10px", fontWeight: 700, color: color, fontFamily: "'JetBrains Mono', monospace" }}>{Math.round(pct)}%</span>
-                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{inv.destination.split(",")[0]}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", alignItems: "center" }}>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", maxWidth: "38%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inv.origin.split(",")[0]}</span>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: color, fontFamily: "'JetBrains Mono', monospace", background: `${color}12`, padding: "2px 8px", borderRadius: "20px" }}>{Math.round(pct)}% complete</span>
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", maxWidth: "38%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>{inv.destination.split(",")[0]}</span>
               </div>
               <div style={{ height: "8px", borderRadius: "999px", background: "#f1f5f9", overflow: "hidden" }}>
                 <div style={{ width: `${pct}%`, height: "100%", borderRadius: "999px", background: overdue ? "#dc2626" : color, transition: "width 1.2s ease" }} />
@@ -289,37 +507,85 @@ export default function TrackerShipmentDetail() {
           </div>
         </div>
 
-        {/* ── Journey Timeline ───────────────────────────── */}
+        {/* ── Route visualization ──────────────────────────── */}
+        <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid #f1f5f9" }}>
+            <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Globe size={13} color="#2563eb" />
+            </div>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Voyage Route</span>
+          </div>
+          <div style={{ padding: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {/* Origin */}
+              <div style={{ textAlign: "center", minWidth: "70px" }}>
+                <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#2563eb", margin: "0 auto 5px", boxShadow: "0 0 0 4px rgba(37,99,235,0.15)" }} />
+                <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inv.origin.split(",")[0]}</p>
+                {depDate && <p style={{ margin: "2px 0 0", fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(depDate, "MMM dd")}</p>}
+              </div>
+
+              {/* Progress bar track */}
+              <div style={{ flex: 1, position: "relative" }}>
+                <div style={{ height: "3px", background: "#e2e8f0", borderRadius: "2px", position: "relative", overflow: "visible" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, #2563eb, ${color})`, borderRadius: "2px", maxWidth: "100%" }} />
+                  {/* Ship marker */}
+                  <div style={{
+                    position: "absolute", top: "50%",
+                    left: `${Math.min(Math.max(pct, 2), 96)}%`,
+                    transform: "translate(-50%, -50%)",
+                    width: "20px", height: "20px", borderRadius: "50%",
+                    background: "#fff", border: `2px solid ${color}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: `0 0 0 3px ${color}18`,
+                  }}>
+                    <Ship size={9} color={color} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "center", marginTop: "14px" }}>
+                  <span style={{ fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                    {mktShipment?.transitDays ? `${mktShipment.transitDays}d transit · ` : ""}
+                    {Math.round(pct)}% complete
+                  </span>
+                </div>
+              </div>
+
+              {/* Destination */}
+              <div style={{ textAlign: "center", minWidth: "70px" }}>
+                <div style={{ width: "10px", height: "10px", borderRadius: "50%", border: `2px solid ${pct >= 90 ? "#059669" : "#e2e8f0"}`, background: pct >= 90 ? "#059669" : "#fff", margin: "0 auto 5px", boxShadow: pct >= 90 ? "0 0 0 4px rgba(5,150,105,0.15)" : "none" }} />
+                <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inv.destination.split(",")[0]}</p>
+                {arrDate && <p style={{ margin: "2px 0 0", fontSize: "9px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(arrDate, "MMM dd")}</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Journey Timeline ────────────────────────────── */}
         <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Navigation size={13} color={color} />
             </div>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Journey Timeline</span>
+            <span style={{ marginLeft: "auto", padding: "2px 8px", borderRadius: "20px", fontSize: "9px", fontWeight: 700, background: `${color}15`, color, fontFamily: "'JetBrains Mono', monospace" }}>
+              Stage {stageIdx + 1}/{TIMELINE.length}
+            </span>
           </div>
 
           <div style={{ padding: "16px" }}>
             {TIMELINE.map((stage, i) => {
-              const done    = i < stageIdx;
+              const done = i < stageIdx;
               const current = i === stageIdx;
-              const future  = i > stageIdx;
+              const future = i > stageIdx;
               return (
                 <div key={stage.key} style={{ display: "flex", gap: "14px", position: "relative" }}>
-                  {/* Connector line */}
                   {i < TIMELINE.length - 1 && (
                     <div style={{
-                      position: "absolute",
-                      left: "13px",
-                      top: "28px",
-                      width: "2px",
-                      height: "calc(100% - 12px)",
-                      background: done ? color : "#e8edf2",
-                      borderRadius: "1px",
+                      position: "absolute", left: "13px", top: "28px",
+                      width: "2px", height: "calc(100% - 12px)",
+                      background: done ? color : "#e8edf2", borderRadius: "1px",
                       transition: "background 0.3s ease",
                     }} />
                   )}
-
-                  {/* Icon */}
                   <div style={{ flexShrink: 0, zIndex: 1 }}>
                     <div style={{
                       width: "28px", height: "28px", borderRadius: "50%",
@@ -337,8 +603,6 @@ export default function TrackerShipmentDetail() {
                       }
                     </div>
                   </div>
-
-                  {/* Content */}
                   <div style={{ flex: 1, paddingBottom: i < TIMELINE.length - 1 ? "20px" : "0" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <p style={{ margin: 0, fontSize: "13px", fontWeight: current || done ? 600 : 400, color: future ? "#94a3b8" : "#0f172a" }}>
@@ -360,7 +624,7 @@ export default function TrackerShipmentDetail() {
           </div>
         </div>
 
-        {/* ── Shipment Details Grid ──────────────────────── */}
+        {/* ── Shipment Details Grid ───────────────────────── */}
         <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -377,9 +641,9 @@ export default function TrackerShipmentDetail() {
               { icon: Package,    label: "Cargo Type",       value: inv.cargoType },
               { icon: MapPin,     label: "Origin Port",      value: inv.origin },
               { icon: MapPin,     label: "Destination",      value: inv.destination },
-              { icon: Navigation, label: "Current Location", value: pct >= 90 ? inv.destination.split(",")[0] : pct >= 12 ? "International Waters" : inv.origin.split(",")[0] },
-              { icon: Calendar,   label: "Departure Date",   value: depDate ? format(depDate, "MMM dd, yyyy") : "In transit" },
-              { icon: Clock,      label: "ETA",              value: etaDate && pct < 100 ? format(etaDate, "MMM dd, yyyy") : pct >= 100 ? "Delivered" : "—" },
+              { icon: Navigation, label: "Current Location", value: stageIdx >= 5 ? inv.destination.split(",")[0] : stageIdx >= 2 ? "International Waters" : inv.origin.split(",")[0] },
+              { icon: Calendar,   label: "Departure Date",   value: depDate ? format(depDate, "MMM dd, yyyy") : "—" },
+              { icon: Clock,      label: "ETA",              value: arrDate ? format(arrDate, "MMM dd, yyyy") : etaDate ? format(etaDate, "MMM dd, yyyy") : "—" },
               { icon: TrendingUp, label: "Expected Return",  value: mktShipment?.profitPercent ? `+${mktShipment.profitPercent}% APY` : "—" },
             ].map((d, i) => (
               <div key={i} style={{ padding: "10px 12px", borderRadius: "11px", background: "#f8fafc", border: "1px solid #e8edf2" }}>
@@ -395,33 +659,34 @@ export default function TrackerShipmentDetail() {
           </div>
         </div>
 
-        {/* ── Activity Feed ──────────────────────────────── */}
-        <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid #f1f5f9" }}>
-            <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Anchor size={13} color="#d97706" />
-            </div>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Shipment Activity</span>
-            <span style={{ marginLeft: "auto", padding: "2px 7px", borderRadius: "20px", fontSize: "9px", fontWeight: 700, background: "#fffbeb", color: "#d97706", fontFamily: "'JetBrains Mono', monospace" }}>
-              {actFeed.length} events
-            </span>
-          </div>
-
-          <div>
-            {actFeed.map((evt, i) => (
-              <div key={i} style={{ display: "flex", gap: "12px", padding: "12px 16px", borderBottom: i < actFeed.length - 1 ? "1px solid #f8fafc" : "none" }}>
-                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: evt.color, flexShrink: 0, marginTop: "5px" }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "#0f172a" }}>{evt.title}</p>
-                  <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#64748b" }}>{evt.desc}</p>
-                  <p style={{ margin: "2px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{evt.time}</p>
-                </div>
+        {/* ── Activity Feed ───────────────────────────────── */}
+        {actFeed.length > 0 && (
+          <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Anchor size={13} color="#d97706" />
               </div>
-            ))}
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Shipment Activity</span>
+              <span style={{ marginLeft: "auto", padding: "2px 7px", borderRadius: "20px", fontSize: "9px", fontWeight: 700, background: "#fffbeb", color: "#d97706", fontFamily: "'JetBrains Mono', monospace" }}>
+                {actFeed.length} events
+              </span>
+            </div>
+            <div>
+              {actFeed.map((evt, i) => (
+                <div key={i} style={{ display: "flex", gap: "12px", padding: "12px 16px", borderBottom: i < actFeed.length - 1 ? "1px solid #f8fafc" : "none" }}>
+                  <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: evt.color, flexShrink: 0, marginTop: "5px" }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "#0f172a" }}>{evt.title}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#64748b" }}>{evt.desc}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{evt.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* ── Delay warning (if overdue) ─────────────────── */}
+        {/* ── Delay warning ───────────────────────────────── */}
         {overdue && (
           <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "14px", padding: "14px 16px", marginBottom: "12px" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
@@ -436,10 +701,10 @@ export default function TrackerShipmentDetail() {
           </div>
         )}
 
-        {/* ── Action buttons ─────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
+        {/* ── Action buttons ──────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "8px" }}>
           <button
-            onClick={() => downloadReport(reportData)}
+            onClick={() => downloadPdf(reportData)}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
               height: "52px", borderRadius: "14px", border: "1px solid #e2e8f0", cursor: "pointer",
@@ -448,7 +713,7 @@ export default function TrackerShipmentDetail() {
             }}
           >
             <Download size={16} color="#2563eb" />
-            Download Shipment Report
+            Download Shipment Report (PDF)
           </button>
 
           <button

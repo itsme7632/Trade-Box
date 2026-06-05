@@ -8,6 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { audit, getClientIp, getAuditLog } from "../lib/audit";
+import { getAnnouncementStats } from "./announcements-public";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "../../uploads");
@@ -695,6 +696,7 @@ router.delete("/announcements/:id", async (req, res) => {
 });
 
 function serializeAnnouncement(a: typeof announcementsTable.$inferSelect) {
+  const stats = getAnnouncementStats(a.id);
   return {
     id: a.id,
     title: a.title,
@@ -707,6 +709,9 @@ function serializeAnnouncement(a: typeof announcementsTable.$inferSelect) {
     createdBy: a.createdBy ?? null,
     createdAt: a.createdAt.toISOString(),
     updatedAt: a.updatedAt.toISOString(),
+    views: stats.views,
+    dismissals: stats.dismissals,
+    openRate: stats.views > 0 ? Math.round(((stats.views - stats.dismissals) / stats.views) * 100) : 0,
   };
 }
 

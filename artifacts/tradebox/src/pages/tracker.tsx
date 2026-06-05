@@ -79,7 +79,7 @@ export default function Tracker() {
     <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
 
       {/* Header */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "14px 16px", position: "sticky", top: "56px", zIndex: 10 }}>
+      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "14px 16px", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>Live Tracking</h1>
