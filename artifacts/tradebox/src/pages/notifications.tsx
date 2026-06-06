@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, BellOff, Check, CheckCheck, Megaphone, Info, AlertTriangle, Zap, Clock, Ship, Package } from "lucide-react";
+import { Bell, BellOff, Check, CheckCheck, Megaphone, Info, AlertTriangle, Zap, Clock, Ship, Package, Newspaper } from "lucide-react";
 import { usePublicAnnouncements, useGetUserNotifications, useMarkAllNotificationsRead, useMarkNotificationRead } from "@workspace/api-client-react/src/extra-hooks";
 import { useShipmentStageChanged } from "@/hooks/use-socket";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ const userNotifTypeConfig: Record<string, { color: string; bg: string; border: s
   shipment_resumed:   { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: Ship, label: "Resumed" },
   shipment_delivered: { color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", icon: Check, label: "Delivered" },
   info:               { color: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", icon: Info, label: "Info" },
+  news_post:          { color: "#0066FF", bg: "#eff6ff", border: "#bfdbfe", icon: Newspaper, label: "News" },
 };
 
 function S({ h = 80 }: { h?: number }) {

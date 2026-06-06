@@ -4,8 +4,10 @@ import { ShipmentCard } from "@/components/shipment-card";
 import { Link } from "wouter";
 import {
   ArrowRight, TrendingUp, Ship, ArrowUpRight,
-  BarChart2, Globe, Package, Zap, ChevronRight
+  BarChart2, Globe, Package, Zap, ChevronRight, Newspaper
 } from "lucide-react";
+import { useGetLatestNewsPosts } from "@workspace/api-client-react/src/extra-hooks";
+import { formatDistanceToNow, parseISO } from "date-fns";
 
 function StatCard({
   label, value, sub, color, icon: Icon, bg
@@ -309,7 +311,80 @@ export default function Market() {
           </div>
         </section>
 
+        {/* Latest TradeBox News */}
+        <LatestNews />
+
       </div>
     </div>
+  );
+}
+
+function LatestNews() {
+  const { data: posts, isLoading } = useGetLatestNewsPosts();
+
+  if (isLoading) return (
+    <section style={{ padding: "20px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Newspaper size={16} color="#0066FF" />
+          <span style={{ fontSize: "12px", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.06em" }}>Latest TradeBox News</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: "10px" }}>
+        {[1,2,3].map(i => <div key={i} style={{ height: 110, borderRadius: 16, background: "linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%)", backgroundSize: "200% 100%", animation: "shimmer 1.4s infinite" }} />)}
+      </div>
+    </section>
+  );
+
+  if (!posts?.length) return null;
+
+  return (
+    <section style={{ padding: "0 16px 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Newspaper size={16} color="#0066FF" />
+          <span style={{ fontSize: "12px", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.06em" }}>Latest TradeBox News</span>
+        </div>
+        <Link href="/news">
+          <span style={{ fontSize: "11px", fontFamily: "'JetBrains Mono', monospace", color: "#0066FF", fontWeight: 700, display: "flex", alignItems: "center", gap: "3px", cursor: "pointer" }}>
+            View all <ChevronRight size={12} />
+          </span>
+        </Link>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 260px), 1fr))", gap: "10px" }}>
+        {posts.map(post => {
+          const timeAgo = post.publishedAt ? formatDistanceToNow(parseISO(post.publishedAt), { addSuffix: true }) : "";
+          const catColors: Record<string, string> = {
+            platform_update: "#2563eb", new_shipment: "#0891b2", maintenance: "#d97706",
+            feature_release: "#7c3aed", security_alert: "#dc2626", promotion: "#059669",
+            partnership: "#0ea5e9", general: "#64748b",
+          };
+          const color = catColors[post.category] ?? "#64748b";
+          return (
+            <Link key={post.id} href="/news">
+              <div style={{
+                background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "14px",
+                overflow: "hidden", cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                transition: "transform 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ""; (e.currentTarget as HTMLElement).style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)"; }}
+              >
+                <div style={{ height: "3px", background: `linear-gradient(90deg, ${color}, ${color}60)` }} />
+                <div style={{ padding: "12px 14px" }}>
+                  <span style={{ fontSize: "9px", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textTransform: "uppercase", color, letterSpacing: "0.06em" }}>
+                    {post.category.replace("_", " ")}
+                  </span>
+                  <p style={{ margin: "4px 0 0", fontSize: "13px", fontWeight: 700, color: "#0f172a", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {post.title}
+                  </p>
+                  <p style={{ margin: "5px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{timeAgo}</p>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }

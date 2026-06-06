@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/components/auth-context";
-import { BarChart2, Ship, Wallet, Map, User, Anchor, Users, ShieldAlert, LogOut, Bell, X, Info, AlertTriangle, Megaphone, Wrench, Tag, ChevronRight } from "lucide-react";
+import { BarChart2, Ship, Wallet, Map, User, Anchor, Users, ShieldAlert, LogOut, Bell, X, Info, AlertTriangle, Megaphone, Wrench, Tag, ChevronRight, Newspaper } from "lucide-react";
 import { useGetUnreadNotificationCount } from "@workspace/api-client-react/src/extra-hooks";
 import { useShipmentStageChanged } from "@/hooks/use-socket";
 import { useQueryClient } from "@tanstack/react-query";
@@ -226,6 +226,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sidebarExtra = [
     { name: "Shipments", path: "/market/shipments", icon: Anchor },
     { name: "Guild", path: "/guild", icon: Users },
+    { name: "News", path: "/news", icon: Newspaper },
   ];
 
   if (user?.role === "admin") {

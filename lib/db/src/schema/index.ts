@@ -11,3 +11,4 @@ export * from "./platform_settings";
 export * from "./announcements";
 export * from "./shipment_events";
 export * from "./notifications";
+export * from "./news_posts";

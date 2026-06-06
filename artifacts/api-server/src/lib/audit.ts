@@ -50,7 +50,11 @@ export type AuditEvent =
   | "shipment_resumed"
   | "shipment_force_delivered"
   | "guild_commission_paid"
-  | "cron_auto_delivery";
+  | "cron_auto_delivery"
+  | "news_post_created"
+  | "news_post_updated"
+  | "news_post_duplicated"
+  | "news_post_archived";
 
 export interface AuditLogEntry {
   id: string;

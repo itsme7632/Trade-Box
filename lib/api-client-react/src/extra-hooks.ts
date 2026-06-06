@@ -716,3 +716,136 @@ export function useAdminForceDeliverShipment() {
     },
   });
 }
+
+// ── News Center (Public) ────────────────────────────────────────────────────
+
+export interface NewsPost {
+  id: number;
+  title: string;
+  summary: string | null;
+  content: string | null;
+  coverImage: string | null;
+  category: string;
+  author: string;
+  isPinned: boolean;
+  isFeatured: boolean;
+  status: string;
+  publishedAt: string | null;
+  scheduledAt: string | null;
+  viewCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminNewsPost extends NewsPost {
+  createdBy: number | null;
+}
+
+export function useGetNewsPosts(category?: string) {
+  const params = category && category !== "all" ? `?category=${category}` : "";
+  return useQuery<NewsPost[]>({
+    queryKey: ["/api/news", category ?? "all"],
+    queryFn: () => customFetch<NewsPost[]>(`/api/news${params}`),
+    staleTime: 60_000,
+  });
+}
+
+export function useGetLatestNewsPosts() {
+  return useQuery<NewsPost[]>({
+    queryKey: ["/api/news/latest"],
+    queryFn: () => customFetch<NewsPost[]>("/api/news/latest"),
+    staleTime: 60_000,
+  });
+}
+
+export function useGetFeaturedNewsPosts() {
+  return useQuery<NewsPost[]>({
+    queryKey: ["/api/news/featured"],
+    queryFn: () => customFetch<NewsPost[]>("/api/news/featured"),
+    staleTime: 60_000,
+  });
+}
+
+export function useGetNewsPost(id: number | null) {
+  return useQuery<NewsPost>({
+    queryKey: ["/api/news", id],
+    queryFn: () => customFetch<NewsPost>(`/api/news/${id}`),
+    enabled: id != null,
+  });
+}
+
+export function useIncrementNewsView() {
+  return useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ ok: boolean }>(`/api/news/${id}/view`, { method: "POST" }),
+  });
+}
+
+// ── News Center (Admin) ─────────────────────────────────────────────────────
+
+export function useAdminGetNewsPosts() {
+  return useQuery<AdminNewsPost[]>({
+    queryKey: ["/api/admin/news"],
+    queryFn: () => customFetch<AdminNewsPost[]>("/api/admin/news"),
+  });
+}
+
+export function useAdminGetNewsPost(id: number | null) {
+  return useQuery<AdminNewsPost>({
+    queryKey: ["/api/admin/news", id],
+    queryFn: () => customFetch<AdminNewsPost>(`/api/admin/news/${id}`),
+    enabled: id != null,
+  });
+}
+
+export function useAdminCreateNewsPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<AdminNewsPost>) =>
+      customFetch<AdminNewsPost>("/api/admin/news", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/news"] });
+      qc.invalidateQueries({ queryKey: ["/api/news"] });
+    },
+  });
+}
+
+export function useAdminUpdateNewsPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<AdminNewsPost> & { id: number }) =>
+      customFetch<AdminNewsPost>(`/api/admin/news/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/news"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/news", vars.id] });
+      qc.invalidateQueries({ queryKey: ["/api/news"] });
+    },
+  });
+}
+
+export function useAdminDuplicateNewsPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      customFetch<AdminNewsPost>(`/api/admin/news/${id}/duplicate`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/admin/news"] }),
+  });
+}
+
+export function useAdminArchiveNewsPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/news/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/news"] });
+      qc.invalidateQueries({ queryKey: ["/api/news"] });
+    },
+  });
+}

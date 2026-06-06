@@ -272,7 +272,7 @@ export function AdminPlans() {
                 <div className="flex gap-4 mt-2 flex-wrap">
                   <Stat icon={<TrendingUp className="h-3 w-3" />} label="Profit" value={`${p.profitPercent}%`} />
                   <Stat icon={<Users className="h-3 w-3" />} label="Investors" value={`${p.investorCount}`} />
-                  <Stat label="Raised" value={`${p.fundingRaised.toLocaleString()} / ${p.fundingGoal.toLocaleString()} USDT`} />
+                  <Stat label="Raised" value={`${(p.fundingRaised ?? 0).toLocaleString()} / ${(p.fundingGoal ?? 0).toLocaleString()} USDT`} />
                   <Stat label="Transit" value={`${p.transitDays}d`} />
                 </div>
               </div>

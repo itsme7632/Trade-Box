@@ -15,6 +15,8 @@ import notificationsUserRouter from "./notifications-user";
 import twofaRouter from "./twofa";
 import supportRouter from "./support";
 import announcementsRouter from "./announcements-public";
+import newsRouter from "./news";
+import adminNewsRouter from "./admin-news";
 
 const router: IRouter = Router();
 
@@ -33,6 +35,8 @@ router.use("/admin", adminRouter);
 router.use("/admin/shipment-overrides", shipmentOverridesRouter);
 router.use("/notifications", notificationsUserRouter);
 router.use("/announcements", announcementsRouter);
+router.use("/news", newsRouter);
+router.use("/admin/news", adminNewsRouter);
 router.use("/support", supportRouter);
 
 export default router;

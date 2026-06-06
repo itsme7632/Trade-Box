@@ -16,6 +16,7 @@ import TrackerShipmentDetail from "@/pages/tracker-shipment";
 import AdminDashboard from "@/pages/admin";
 import SecurityPage from "@/pages/security";
 import NotificationsPage from "@/pages/notifications";
+import NewsPage from "@/pages/news";
 import { Loader2 } from "lucide-react";
 import { memo, type ComponentType } from "react";
 
@@ -101,6 +102,9 @@ const RouteNotifications = memo(function RouteNotifications() {
 const RouteReferrals = memo(function RouteReferrals() {
   return <ProtectedLayout component={Guild} />;
 });
+const RouteNews = memo(function RouteNews() {
+  return <ProtectedLayout component={NewsPage} />;
+});
 
 function RootRedirect() {
   const { user } = useAuth();
@@ -127,6 +131,7 @@ export function AppRouter() {
       <Route path="/help" component={RouteHelp} />
       <Route path="/notifications" component={RouteNotifications} />
       <Route path="/referrals" component={RouteReferrals} />
+      <Route path="/news" component={RouteNews} />
       <Route path="/admin" component={RouteAdmin} />
 
       <Route path="/" component={RootRedirect} />
