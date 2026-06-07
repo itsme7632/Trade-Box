@@ -2,7 +2,7 @@ import { pgTable, text, serial, timestamp, numeric, integer, pgEnum } from "driz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const cargoTypeEnum = pgEnum("cargo_type", ["electronics", "cocoa", "lithium", "coffee", "textiles", "pharmaceuticals", "cotton", "steel"]);
+export const cargoTypeEnum = pgEnum("cargo_type", ["electronics", "cocoa", "lithium", "coffee", "textiles", "pharmaceuticals", "cotton", "steel", "copper", "gas", "palm_oil", "automotive"]);
 export const riskGradeEnum = pgEnum("risk_grade", ["A", "B", "C", "D"]);
 export const shipmentStatusEnum = pgEnum("shipment_status", ["open", "funded", "in_transit", "delivered"]);
 

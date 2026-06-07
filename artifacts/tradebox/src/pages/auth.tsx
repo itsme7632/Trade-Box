@@ -417,6 +417,26 @@ export function AuthPage() {
                   {mode === "login" && (
                     <Form {...loginForm}>
                       <form onSubmit={loginForm.handleSubmit(onLogin)} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+                        {/* Quick login pills */}
+                        <div style={{ background: "#f8fafc", border: "1px solid #e8edf2", borderRadius: "14px", padding: "12px" }}>
+                          <p style={{ margin: "0 0 8px", fontSize: "10px", fontWeight: 700, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.08em" }}>Quick Access</p>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button type="button"
+                              onClick={() => { loginForm.setValue("email", "demo@tradebox.io"); loginForm.setValue("password", "Demo1234!"); }}
+                              style={{ flex: 1, padding: "8px 10px", borderRadius: "10px", border: "1px solid #bfdbfe", background: "#eff6ff", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "1px" }}>
+                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#2563eb" }}>Demo Account</span>
+                              <span style={{ fontSize: "9px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>demo@tradebox.io</span>
+                            </button>
+                            <button type="button"
+                              onClick={() => { loginForm.setValue("email", "admin@tradebox.io"); loginForm.setValue("password", "TradeBoxAdmin2025!"); }}
+                              style={{ flex: 1, padding: "8px 10px", borderRadius: "10px", border: "1px solid #fde8d8", background: "#fff7ed", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "1px" }}>
+                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#ea580c" }}>Admin Panel</span>
+                              <span style={{ fontSize: "9px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>admin@tradebox.io</span>
+                            </button>
+                          </div>
+                        </div>
+
                         <FormField control={loginForm.control} name="email" render={({ field }) => (
                           <FormItem>
                             <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
