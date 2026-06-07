@@ -3,6 +3,7 @@ import { db, usersTable, kycTable, investmentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { UpdateProfileBody, SubmitKycBody, UpdateWalletAddressesBody } from "@workspace/api-zod";
+import { z } from "zod";
 
 const router = Router();
 
@@ -36,6 +37,7 @@ async function buildProfile(user: typeof usersTable.$inferSelect) {
     telegramHandle: user.telegramHandle ?? null,
     whatsappNumber: user.whatsappNumber ?? null,
     twoFactorEnabled: user.twoFactorEnabled,
+    darkMode: user.darkMode,
     walletAddresses: {
       btc: user.walletAddressBtc ?? null,
       eth: user.walletAddressEth ?? null,
@@ -86,6 +88,19 @@ router.patch("/", requireAuth, async (req, res) => {
 
   const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
   res.json(await buildProfile(user));
+});
+
+const PrefsBody = z.object({ darkMode: z.boolean().optional() });
+
+router.patch("/preferences", requireAuth, async (req, res) => {
+  const userId = (req as typeof req & { user: { userId: number } }).user.userId;
+  const parsed = PrefsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+  if (parsed.data.darkMode !== undefined) updates.darkMode = parsed.data.darkMode;
+  if (Object.keys(updates).length === 0) { res.json({ success: true }); return; }
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
+  res.json({ success: true });
 });
 
 router.post("/kyc", requireAuth, async (req, res) => {

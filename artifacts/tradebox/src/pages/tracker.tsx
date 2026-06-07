@@ -73,21 +73,21 @@ export default function Tracker() {
   }, [activities]);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
+    <div style={{ minHeight: "100vh", background: "var(--tb-bg-page)" }}>
 
       {/* Header */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "14px 16px", position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ background: "var(--tb-header)", borderBottom: "1px solid var(--tb-border)", padding: "14px 16px", position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>Live Tracking</h1>
-            <p style={{ margin: "1px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Logistics Control Center</p>
+            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>Live Tracking</h1>
+            <p style={{ margin: "1px 0 0", fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Logistics Control Center</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981" }} />
               <span style={{ fontSize: "10px", color: "#10b981", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>LIVE</span>
             </div>
-            <button onClick={() => { refetch(); setLastRefresh(new Date()); }} style={{ width: "32px", height: "32px", borderRadius: "9px", background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <button onClick={() => { refetch(); setLastRefresh(new Date()); }} style={{ width: "32px", height: "32px", borderRadius: "9px", background: "var(--tb-bg-subtle)", border: "1px solid var(--tb-border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <RefreshCw size={13} color="#64748b" />
             </button>
           </div>
@@ -97,7 +97,7 @@ export default function Tracker() {
       <div style={{ padding: "16px", maxWidth: "800px", margin: "0 auto" }}>
 
         {/* KPI strip */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "14px" }}>
+        <div className="tb-grid-4" style={{ marginBottom: "14px" }}>
           {[
             { label: "At Sea",  value: atSea,        color: "#2563eb", bg: "#eff6ff", icon: Ship         },
             { label: "Ports",   value: ports,        color: "#7c3aed", bg: "#f5f3ff", icon: MapPin       },
@@ -105,14 +105,14 @@ export default function Tracker() {
             { label: "Delayed", value: delayed,      color: delayed > 0 ? "#dc2626" : "#94a3b8",
               bg: delayed > 0 ? "#fef2f2" : "#f8fafc", icon: AlertTriangle },
           ].map((s, i) => (
-            <div key={i} style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "14px", padding: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div key={i} style={{ background: "var(--tb-bg-card)", border: "1px solid var(--tb-border)", borderRadius: "14px", padding: "12px", boxShadow: "var(--tb-shadow-sm)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span style={{ fontSize: "9px", fontFamily: "'JetBrains Mono', monospace", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</span>
+                <span style={{ fontSize: "9px", fontFamily: "'JetBrains Mono', monospace", color: "var(--tb-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</span>
                 <div style={{ width: "22px", height: "22px", borderRadius: "7px", background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <s.icon size={11} color={s.color} />
                 </div>
               </div>
-              <div style={{ fontSize: "20px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: "20px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1, marginTop: "4px" }}>{s.value}</div>
             </div>
           ))}
         </div>
@@ -130,12 +130,12 @@ export default function Tracker() {
         {/* Shipment summary header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <h2 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Your Shipments</h2>
+            <h2 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>Your Shipments</h2>
             {!shipmentsLoading && (
               <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "10px", fontWeight: 700, background: "#eff6ff", color: "#2563eb", fontFamily: "'JetBrains Mono', monospace" }}>{list.length}</span>
             )}
           </div>
-          <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>{format(lastRefresh, "HH:mm")}</span>
+          <span style={{ fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>{format(lastRefresh, "HH:mm")}</span>
         </div>
 
         {/* Shipment list */}
@@ -144,10 +144,10 @@ export default function Tracker() {
             {[...Array(3)].map((_, i) => <S key={i} h={110} />)}
           </div>
         ) : list.length === 0 ? (
-          <div style={{ background: "#ffffff", border: "1px dashed #e2e8f0", borderRadius: "16px", padding: "56px 20px", textAlign: "center" }}>
-            <Ship size={32} color="#cbd5e1" style={{ marginBottom: "12px" }} />
-            <h3 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 700, color: "#64748b", fontFamily: "'Space Grotesk', sans-serif" }}>No Active Shipments</h3>
-            <p style={{ margin: 0, fontSize: "12px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>Fund a shipment from the Market to start tracking.</p>
+          <div style={{ background: "var(--tb-bg-card)", border: "1px dashed var(--tb-border)", borderRadius: "16px", padding: "56px 20px", textAlign: "center" }}>
+            <Ship size={32} color="var(--tb-text-muted)" style={{ marginBottom: "12px" }} />
+            <h3 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 700, color: "var(--tb-text-faint)", fontFamily: "'Space Grotesk', sans-serif" }}>No Active Shipments</h3>
+            <p style={{ margin: 0, fontSize: "12px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>Fund a shipment from the Market to start tracking.</p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
@@ -171,11 +171,11 @@ export default function Tracker() {
                   key={s.id}
                   onClick={() => navigate(`/tracker/shipment/${s.id}`)}
                   style={{
-                    background: "#ffffff",
-                    border: `1px solid ${overdue ? "#fecaca" : "#e8edf2"}`,
+                    background: "var(--tb-bg-card)",
+                    border: `1px solid ${overdue ? "#fecaca" : "var(--tb-border)"}`,
                     borderRadius: "16px",
                     overflow: "hidden",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                    boxShadow: "var(--tb-shadow-sm)",
                     cursor: "pointer",
                     transition: "box-shadow 0.15s ease, transform 0.1s ease",
                     userSelect: "none",
@@ -211,7 +211,7 @@ export default function Tracker() {
                             </span>
                           )}
                         </div>
-                        <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "var(--tb-text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {s.vesselName}
                         </p>
                       </div>
@@ -220,36 +220,36 @@ export default function Tracker() {
 
                     {/* Row 2: route + pct */}
                     <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
-                      <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "38%" }}>
+                      <span style={{ fontSize: "11px", color: "var(--tb-text-faint)", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "38%" }}>
                         {s.origin.split(",")[0]}
                       </span>
-                      <ArrowRight size={10} color="#cbd5e1" style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: "11px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      <ArrowRight size={10} color="var(--tb-text-muted)" style={{ flexShrink: 0 }} />
+                      <span style={{ fontSize: "11px", color: "var(--tb-text-faint)", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                         {s.destination.split(",")[0]}
                       </span>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#0f172a", fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>{Math.round(pct)}%</span>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>{Math.round(pct)}%</span>
                     </div>
 
                     {/* Progress bar */}
                     <div style={{ marginBottom: "10px" }}>
-                      <div style={{ height: "5px", borderRadius: "999px", background: "#f1f5f9", overflow: "hidden", marginBottom: "4px" }}>
+                      <div style={{ height: "5px", borderRadius: "999px", background: "var(--tb-bg-subtle)", overflow: "hidden", marginBottom: "4px" }}>
                         <div style={{ width: `${pct}%`, height: "100%", borderRadius: "999px", background: overdue ? "#dc2626" : color, transition: "width 1s ease" }} />
                       </div>
                       <div style={{ position: "relative", height: "18px" }}>
-                        <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "#f1f5f9", transform: "translateY(-50%)" }} />
+                        <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "var(--tb-bg-subtle)", transform: "translateY(-50%)" }} />
                         <div style={{ position: "absolute", top: "50%", left: 0, width: `${pct}%`, height: "1px", background: color, transform: "translateY(-50%)", maxWidth: "100%" }} />
-                        <div style={{ position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 2), 95)}%`, transform: "translate(-50%, -50%)", width: "18px", height: "18px", borderRadius: "50%", background: "#ffffff", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 3px ${color}18` }}>
+                        <div style={{ position: "absolute", top: "50%", left: `${Math.min(Math.max(pct, 2), 95)}%`, transform: "translate(-50%, -50%)", width: "18px", height: "18px", borderRadius: "50%", background: "var(--tb-bg-card)", border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 0 3px ${color}18` }}>
                           <Ship size={8} color={color} />
                         </div>
                       </div>
                     </div>
 
                     {/* Row 3: investment + cargo */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid #f8fafc" }}>
-                      <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
-                        <b style={{ color: "#0f172a" }}>{(s.myAmount ?? 0).toLocaleString()} USDT</b> invested
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--tb-border-subtle)" }}>
+                      <span style={{ fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        <b style={{ color: "var(--tb-text-primary)" }}>{(s.myAmount ?? 0).toLocaleString()} USDT</b> invested
                       </span>
-                      <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "capitalize" }}>
+                      <span style={{ fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace", textTransform: "capitalize" }}>
                         {s.cargoType}
                       </span>
                     </div>
@@ -263,14 +263,14 @@ export default function Tracker() {
         {/* Port Activity */}
         <div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-            <h2 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>Port Activity</h2>
+            <h2 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>Port Activity</h2>
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <div style={{ width: "5px", height: "5px", borderRadius: "50%", background: "#f59e0b" }} />
               <span style={{ fontSize: "9px", color: "#f59e0b", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textTransform: "uppercase" }}>Feed</span>
             </div>
           </div>
 
-          <div ref={activityRef} style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", maxHeight: "320px", overflowY: "auto" }}>
+          <div ref={activityRef} style={{ background: "var(--tb-bg-card)", border: "1px solid var(--tb-border)", borderRadius: "16px", overflow: "hidden", boxShadow: "var(--tb-shadow-sm)", maxHeight: "320px", overflowY: "auto" }}>
             {activitiesLoading ? (
               <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
                 {[...Array(3)].map((_, i) => <S key={i} h={54} />)}
@@ -281,19 +281,25 @@ export default function Tracker() {
                   const isArr = act.eventType === "arrival";
                   const c = isArr ? "#059669" : "#2563eb";
                   const bg = isArr ? "#ecfdf5" : "#eff6ff";
+                  const isMyVessel = list.some(s => s.vesselName === act.vesselName);
                   return (
-                    <div key={act.id} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "11px 14px", borderBottom: idx < activities.length - 1 ? "1px solid #f8fafc" : "none" }}>
+                    <div key={act.id} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "11px 14px", borderBottom: idx < activities.length - 1 ? "1px solid var(--tb-border-subtle)" : "none", background: isMyVessel ? "rgba(37,99,235,0.04)" : "transparent" }}>
                       <div style={{ width: "28px", height: "28px", borderRadius: "9px", background: bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px" }}>
                         {isArr ? <Anchor size={12} color={c} /> : <Ship size={12} color={c} />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: "12px", color: "#334155", lineHeight: 1.4 }}>
-                          <b style={{ color: "#0f172a" }}>{act.vesselName}</b>
-                          {" "}<span style={{ color: c, fontWeight: 500 }}>{isArr ? "arrived at" : "departed from"}</span>{" "}
-                          <b style={{ color: "#0f172a" }}>{act.portName}</b>
-                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
+                          <p style={{ margin: 0, fontSize: "12px", color: "var(--tb-text-secondary)", lineHeight: 1.4 }}>
+                            <b style={{ color: "var(--tb-text-primary)" }}>{act.vesselName}</b>
+                            {" "}<span style={{ color: c, fontWeight: 500 }}>{isArr ? "arrived at" : "departed from"}</span>{" "}
+                            <b style={{ color: "var(--tb-text-primary)" }}>{act.portName}</b>
+                          </p>
+                          {isMyVessel && (
+                            <span style={{ padding: "1px 6px", borderRadius: "20px", fontSize: "8px", fontWeight: 700, color: "#2563eb", background: "#eff6ff", fontFamily: "'JetBrains Mono', monospace" }}>YOUR VESSEL</span>
+                          )}
+                        </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-                          <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                          <span style={{ fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
                             {format(parseISO(act.timestamp), "HH:mm · MMM dd")}
                           </span>
                           {act.cargoType && (
@@ -313,7 +319,7 @@ export default function Tracker() {
             ) : (
               <div style={{ padding: "40px 20px", textAlign: "center" }}>
                 <Activity size={24} color="#cbd5e1" style={{ marginBottom: "8px" }} />
-                <p style={{ margin: 0, color: "#94a3b8", fontSize: "12px", fontFamily: "'JetBrains Mono', monospace" }}>No port activity yet.</p>
+                <p style={{ margin: 0, color: "var(--tb-text-muted)", fontSize: "12px", fontFamily: "'JetBrains Mono', monospace" }}>No port activity yet.</p>
               </div>
             )}
           </div>

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, shipmentsTable, investmentsTable, usersTable, transactionsTable } from "@workspace/db";
-import { eq, and, desc, lte, gte } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getLivePrices } from "../lib/commodities";
 import { requireAuth } from "../lib/auth";
 
@@ -15,28 +15,50 @@ router.get("/summary", requireAuth, async (req, res) => {
   const deliveredInvs = invs.filter(i => i.status === "delivered");
   const totalProfit = deliveredInvs.reduce((acc, i) => acc + Number(i.actualProfit ?? 0), 0);
   const portfolioValue = activeInvs.reduce((acc, i) => acc + Number(i.amount), 0);
-  const totalShipped = invs.reduce((acc, i) => acc + Number(i.amount), 0);
 
-  // Featured shipment (open, highest funded)
+  // Guild (referral) commissions
+  const allTxns = await db.select().from(transactionsTable)
+    .where(and(eq(transactionsTable.userId, userId), eq(transactionsTable.type, "guild_commission")))
+    .orderBy(desc(transactionsTable.createdAt));
+  const referralEarnings = allTxns
+    .filter(t => t.status === "cleared")
+    .reduce((acc, t) => acc + Number(t.amount), 0);
+
+  // Recent activity (last 8 transactions)
+  const recentTxns = await db.select().from(transactionsTable)
+    .where(eq(transactionsTable.userId, userId))
+    .orderBy(desc(transactionsTable.createdAt))
+    .limit(8);
+
+  // Featured shipment (is_featured=1 first, else highest funded open)
   const openShipments = await db.select().from(shipmentsTable).where(eq(shipmentsTable.status, "open"));
-  const featured = openShipments.sort((a, b) => Number(b.fundingRaised) - Number(a.fundingRaised))[0] ?? openShipments[0];
+  const featured = openShipments.find(s => s.isFeatured === 1) ??
+    openShipments.sort((a, b) => Number(b.fundingRaised) - Number(a.fundingRaised))[0];
+
+  const baseResponse = {
+    portfolioValue,
+    availableBalance: Number(user?.balance ?? 0),
+    activeInvestments: activeInvs.length,
+    completedShipments: deliveredInvs.length,
+    totalProfit,
+    referralEarnings,
+    recentActivity: recentTxns.map(t => ({
+      id: t.id,
+      type: t.type,
+      amount: Number(t.amount),
+      status: t.status,
+      coin: t.coin ?? "USDT",
+      createdAt: t.createdAt.toISOString(),
+    })),
+  };
 
   if (!featured) {
-    res.json({
-      portfolioValue,
-      activeInvestments: activeInvs.length,
-      totalProfit,
-      totalShipped,
-      featuredShipment: null,
-    });
+    res.json({ ...baseResponse, featuredShipment: null });
     return;
   }
 
   res.json({
-    portfolioValue,
-    activeInvestments: activeInvs.length,
-    totalProfit,
-    totalShipped,
+    ...baseResponse,
     featuredShipment: {
       id: featured.id,
       title: featured.title,
@@ -50,9 +72,9 @@ router.get("/summary", requireAuth, async (req, res) => {
       fundingGoal: Number(featured.fundingGoal),
       fundingRaised: Number(featured.fundingRaised),
       minInvestment: Number(featured.minInvestment),
+      transitDays: featured.transitDays,
       departureDate: featured.departureDate.toISOString(),
       arrivalDate: featured.arrivalDate.toISOString(),
-      transitDays: featured.transitDays,
       status: featured.status,
       freightForwarder: featured.freightForwarder,
       vesselName: featured.vesselName,
@@ -87,9 +109,8 @@ router.get("/delivery-feed", async (_req, res) => {
 
 router.get("/closing-soon", async (_req, res) => {
   const openShipments = await db.select().from(shipmentsTable).where(eq(shipmentsTable.status, "open"));
-  // "Closing soon" = funding progress >= 70%
   const closingSoon = openShipments
-    .filter(s => (Number(s.fundingRaised) / Number(s.fundingGoal)) >= 0.7)
+    .filter(s => (Number(s.fundingRaised) / Number(s.fundingGoal)) >= 0.5)
     .sort((a, b) => (Number(b.fundingRaised) / Number(b.fundingGoal)) - (Number(a.fundingRaised) / Number(a.fundingGoal)));
 
   res.json(closingSoon.map(s => ({

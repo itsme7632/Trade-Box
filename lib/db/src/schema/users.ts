@@ -35,6 +35,7 @@ export const usersTable = pgTable("users", {
   registrationIp: text("registration_ip"),
   lastLoginIp: text("last_login_ip"),
   sessionVersion: integer("session_version").notNull().default(0),
+  darkMode: boolean("dark_mode").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

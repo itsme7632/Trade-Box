@@ -9,8 +9,9 @@ import {
   Camera, Smartphone, HelpCircle, Lock,
   EyeOff, Eye, TrendingUp, Ship, Zap,
   Settings, MapPin, AtSign, Globe,
-  Wallet, Users, DollarSign
+  Wallet, Users, DollarSign, Sun, Moon
 } from "lucide-react";
+import { useTheme } from "@/components/theme-context";
 import { useAuth } from "@/components/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -37,16 +38,16 @@ const passwordSchema = z.object({
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div style={{ background: "#ffffff", border: "1px solid #e8edf2", borderRadius: "18px", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: "10px" }}>{children}</div>;
+  return <div style={{ background: "var(--tb-bg-card)", border: "1px solid var(--tb-border)", borderRadius: "18px", overflow: "hidden", boxShadow: "var(--tb-shadow-sm)", marginBottom: "10px" }}>{children}</div>;
 }
 
 function CardHeader({ icon: Icon, title, color }: { icon: any; title: string; color: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid #f1f5f9" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "13px 16px", borderBottom: "1px solid var(--tb-border-subtle)" }}>
       <div style={{ width: "26px", height: "26px", borderRadius: "8px", background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Icon size={13} color={color} />
       </div>
-      <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif" }}>{title}</span>
+      <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>{title}</span>
     </div>
   );
 }
@@ -56,22 +57,22 @@ function Row({ icon: Icon, label, value, color = "#94a3b8", onClick, danger, bad
 }) {
   return (
     <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px", cursor: onClick ? "pointer" : "default", transition: "background 0.1s" }}
-      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLElement).style.background = "var(--tb-bg-subtle)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
       <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: danger ? "#fef2f2" : `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon size={15} color={danger ? "#ef4444" : color} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, color: danger ? "#ef4444" : "#0f172a" }}>{label}</p>
-        {value && <p style={{ margin: "1px 0 0", fontSize: "11px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>}
+        <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, color: danger ? "#ef4444" : "var(--tb-text-primary)" }}>{label}</p>
+        {value && <p style={{ margin: "1px 0 0", fontSize: "11px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>}
       </div>
       {badge}
-      {onClick && <ChevronRight size={14} color="#cbd5e1" style={{ flexShrink: 0 }} />}
+      {onClick && <ChevronRight size={14} color="var(--tb-text-muted)" style={{ flexShrink: 0 }} />}
     </div>
   );
 }
 
-function Div() { return <div style={{ height: "1px", background: "#f1f5f9", margin: "0 16px" }} />; }
+function Div() { return <div style={{ height: "1px", background: "var(--tb-border-subtle)", margin: "0 16px" }} />; }
 
 function BackBtn({ onClick }: { onClick: () => void }) {
   return (
@@ -170,6 +171,7 @@ export default function ProfilePage() {
     : (profile?.email?.charAt(0).toUpperCase() || "T");
 
   const { data: balance } = useGetBalance();
+  const { theme, toggleTheme, isDark } = useTheme();
 
   const stats = [
     { label: "Shipped",   value: `${((profile?.traderStats?.totalShipped ?? 0)).toLocaleString()} USDT`,    color: "#2563eb", icon: Ship      },
@@ -190,10 +192,10 @@ export default function ProfilePage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f6f8fb" }}>
+    <div style={{ minHeight: "100vh", background: "var(--tb-bg-page)" }}>
 
       {/* Hero */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid #e8edf2", padding: "24px 16px 20px" }}>
+      <div style={{ background: "var(--tb-header)", borderBottom: "1px solid var(--tb-border)", padding: "24px 16px 20px" }}>
         <div style={{ maxWidth: "540px", margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "20px" }}>
 
@@ -237,11 +239,11 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "14px" }}>
+          <div className="tb-grid-4" style={{ marginBottom: "14px" }}>
             {stats.map((s, i) => (
-              <div key={i} style={{ padding: "10px 6px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e8edf2", textAlign: "center" }}>
+              <div key={i} style={{ padding: "10px 6px", borderRadius: "12px", background: "var(--tb-bg-subtle)", border: "1px solid var(--tb-border)", textAlign: "center" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, color: s.color, fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.value}</div>
-                <div style={{ fontSize: "8px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "2px" }}>{s.label}</div>
+                <div style={{ fontSize: "8px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: "2px" }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -302,6 +304,24 @@ export default function ProfilePage() {
 
             <Card>
               <CardHeader icon={Settings} title="Preferences" color="#7c3aed" />
+              {/* Dark mode toggle */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "13px 16px", cursor: "pointer" }} onClick={toggleTheme}>
+                <div style={{ width: "34px", height: "34px", borderRadius: "10px", background: isDark ? "rgba(245,158,11,0.12)" : "rgba(124,58,237,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {isDark ? <Sun size={15} color="#f59e0b" /> : <Moon size={15} color="#7c3aed" />}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 500, color: "var(--tb-text-primary)" }}>
+                    {isDark ? "Dark Mode" : "Light Mode"}
+                  </p>
+                  <p style={{ margin: "1px 0 0", fontSize: "11px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+                    {isDark ? "Switch to light theme" : "Switch to dark theme"}
+                  </p>
+                </div>
+                <div style={{ width: "40px", height: "22px", borderRadius: "11px", background: isDark ? "#2563eb" : "var(--tb-bg-muted-2)", border: `1px solid ${isDark ? "#1d4ed8" : "var(--tb-border-muted)"}`, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+                  <div style={{ position: "absolute", top: "2px", left: isDark ? "20px" : "2px", width: "16px", height: "16px", borderRadius: "50%", background: "white", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                </div>
+              </div>
+              <Div />
               <Row icon={Users} label="Referral Guild" value="Network, commissions & rank" color="#7c3aed" onClick={() => setLocation("/referrals")} />
               <Div />
               <Row icon={Bell} label="Notifications" value="Alerts & announcements" color="#d97706" onClick={() => setLocation("/notifications")} />
