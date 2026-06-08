@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { SubmitDepositBody, SubmitWithdrawalBody } from "@workspace/api-zod";
 import { audit, getClientIp } from "../lib/audit";
+import { createNotification } from "../lib/notifications";
 
 const router = Router();
 
@@ -86,6 +87,8 @@ router.post("/deposit", requireAuth, async (req, res) => {
     proofUrl: proofUrl ?? null,
   }).returning();
 
+  createNotification(userId, "deposit", "Deposit Submitted", `Your deposit of ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT is under review. Admin will process it within 24 hours.`, { link: "/wallet" });
+
   res.status(201).json(formatLedger(tx));
 });
 
@@ -135,6 +138,8 @@ router.post("/withdraw", requireAuth, async (req, res) => {
     ip,
     detail: { amount, fee, coin, walletAddress, txId: tx.id, newBalance: Number(updatedUser.balance) },
   });
+
+  createNotification(userId, "withdrawal", "Withdrawal Submitted", `Your withdrawal of ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT is being processed.`, { link: "/wallet" });
 
   res.status(201).json(formatLedger(tx));
 });

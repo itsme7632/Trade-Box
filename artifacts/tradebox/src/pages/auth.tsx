@@ -46,10 +46,10 @@ const step1Schema = z.object({
 });
 
 const step2Schema = z.object({
-  username: z.string().min(3, "Min 3 characters").regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers, underscores only").optional().or(z.literal("")),
+  username: z.string().min(3, "Min 3 characters").regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers, underscores only"),
   country: z.string().min(1, "Select your country"),
   telegramHandle: z.string().optional().or(z.literal("")),
-  whatsappNumber: z.string().optional().or(z.literal("")),
+  whatsappNumber: z.string().min(7, "Enter your WhatsApp number"),
 });
 
 const step3Schema = z.object({
@@ -418,25 +418,6 @@ export function AuthPage() {
                     <Form {...loginForm}>
                       <form onSubmit={loginForm.handleSubmit(onLogin)} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-                        {/* Quick login pills */}
-                        <div style={{ background: "#f8fafc", border: "1px solid #e8edf2", borderRadius: "14px", padding: "12px" }}>
-                          <p style={{ margin: "0 0 8px", fontSize: "10px", fontWeight: 700, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.08em" }}>Quick Access</p>
-                          <div style={{ display: "flex", gap: "8px" }}>
-                            <button type="button"
-                              onClick={() => { loginForm.setValue("email", "demo@tradebox.io"); loginForm.setValue("password", "Demo1234!"); }}
-                              style={{ flex: 1, padding: "8px 10px", borderRadius: "10px", border: "1px solid #bfdbfe", background: "#eff6ff", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "1px" }}>
-                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#2563eb" }}>Demo Account</span>
-                              <span style={{ fontSize: "9px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>demo@tradebox.io</span>
-                            </button>
-                            <button type="button"
-                              onClick={() => { loginForm.setValue("email", "admin@tradebox.io"); loginForm.setValue("password", "TradeBoxAdmin2025!"); }}
-                              style={{ flex: 1, padding: "8px 10px", borderRadius: "10px", border: "1px solid #fde8d8", background: "#fff7ed", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "1px" }}>
-                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#ea580c" }}>Admin Panel</span>
-                              <span style={{ fontSize: "9px", color: "#64748b", fontFamily: "'JetBrains Mono', monospace" }}>admin@tradebox.io</span>
-                            </button>
-                          </div>
-                        </div>
-
                         <FormField control={loginForm.control} name="email" render={({ field }) => (
                           <FormItem>
                             <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -523,7 +504,7 @@ export function AuthPage() {
                           <FormField control={step2Form.control} name="username" render={({ field }) => (
                             <FormItem>
                               <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                <User size={11} color="#94a3b8" /> Username <span style={{ color: "#cbd5e1", fontWeight: 400 }}>(optional)</span>
+                                <User size={11} color="#94a3b8" /> Username
                               </FormLabel>
                               <FormControl>
                                 <Input
@@ -568,9 +549,10 @@ export function AuthPage() {
                           <FormField control={step2Form.control} name="whatsappNumber" render={({ field }) => (
                             <FormItem>
                               <FormLabel style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                                <Phone size={11} color="#94a3b8" /> WhatsApp <span style={{ color: "#cbd5e1", fontWeight: 400 }}>(optional)</span>
+                                <Phone size={11} color="#94a3b8" /> WhatsApp
                               </FormLabel>
                               <FormControl><Input placeholder="+1 555 000 0000" className="tb-input h-11 text-sm" {...field} /></FormControl>
+                              <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                             </FormItem>
                           )} />
                           <div style={{ display: "flex", gap: "10px" }}>

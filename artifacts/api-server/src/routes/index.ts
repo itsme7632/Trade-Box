@@ -17,6 +17,7 @@ import supportRouter from "./support";
 import announcementsRouter from "./announcements-public";
 import newsRouter from "./news";
 import adminNewsRouter from "./admin-news";
+import uploadRouter from "./upload";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use("/announcements", announcementsRouter);
 router.use("/news", newsRouter);
 router.use("/admin/news", adminNewsRouter);
 router.use("/support", supportRouter);
+router.use("/upload", uploadRouter);
 
 export default router;

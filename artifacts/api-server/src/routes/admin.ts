@@ -7,6 +7,7 @@ import { requireAuth, requireAdmin } from "../lib/auth";
 import { AdminRejectDepositBody, AdminProcessWithdrawalBody, AdminRejectKycBody, AdminCreditProfitBody, AdminCreateShipmentBody, AdminUpdateShipmentBody, AdminUpdateCryptoWalletsBody } from "@workspace/api-zod";
 import { audit, getClientIp } from "../lib/audit";
 import { processGuildCommissions, parseTier } from "../lib/commission";
+import { createNotification } from "../lib/notifications";
 
 const SupportSettingsPatchBody = z.object({
   telegramSupport: z.string().optional(),
@@ -104,6 +105,8 @@ router.post("/deposits/:id/approve", async (req, res) => {
 
   audit({ event: "deposit_approved", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, amount } });
 
+  createNotification(tx.userId, "deposit", "Deposit Approved ✓", `Your deposit of ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT has been approved and credited to your account.`, { link: "/wallet" });
+
   res.json({
     id: updated.id,
     userId: updated.userId,
@@ -133,6 +136,8 @@ router.post("/deposits/:id/reject", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId)).limit(1);
 
   audit({ event: "deposit_rejected", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, reason: parsed.data.reason } });
+
+  createNotification(updated.userId, "deposit", "Deposit Rejected", `Your deposit of ${Number(updated.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT was rejected. Reason: ${parsed.data.reason}`, { link: "/wallet" });
 
   res.json({
     id: updated.id,
@@ -209,6 +214,8 @@ router.post("/withdrawals/:id/process", async (req, res) => {
 
   audit({ event: "withdrawal_approved", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, principal, fee, txid: parsed.data.txid } });
 
+  createNotification(tx.userId, "withdrawal", "Withdrawal Processed ✓", `Your withdrawal of ${principal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT has been sent. TXID: ${parsed.data.txid}`, { link: "/wallet" });
+
   res.json({
     id: updated.id,
     userId: updated.userId,
@@ -259,6 +266,8 @@ router.post("/withdrawals/:id/reject", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, tx.userId)).limit(1);
 
   audit({ event: "withdrawal_rejected", userId: adminId, ip, detail: { txId: id, targetUser: user.traderId, principal, fee, totalRestored: totalToRestore, reason: parsed.data.reason } });
+
+  createNotification(tx.userId, "withdrawal", "Withdrawal Rejected", `Your withdrawal of ${principal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT was rejected: ${parsed.data.reason}. Funds have been returned to your balance.`, { link: "/wallet" });
 
   res.json({
     id: updated.id,
@@ -415,6 +424,8 @@ router.post("/kyc/:id/approve", async (req, res) => {
 
   audit({ event: "kyc_approved", userId: adminId, ip, detail: { kycId: id, targetUser: user.traderId } });
 
+  createNotification(kyc.userId, "info", "KYC Verified ✓", "Your identity has been verified successfully. You now have full access to all platform features.", { link: "/profile" });
+
   res.json({
     id: kyc.id, userId: kyc.userId, traderId: user.traderId, email: user.email,
     idDocumentUrl: kyc.idDocumentUrl, selfieUrl: kyc.selfieUrl, proofOfAddressUrl: kyc.proofOfAddressUrl ?? null,
@@ -436,6 +447,8 @@ router.post("/kyc/:id/reject", async (req, res) => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, kyc.userId)).limit(1);
 
   audit({ event: "kyc_rejected", userId: adminId, ip, detail: { kycId: id, targetUser: user.traderId, reason: parsed.data.reason } });
+
+  createNotification(kyc.userId, "info", "KYC Rejected", `Your identity verification was rejected: ${parsed.data.reason}. Please resubmit with clearer documents.`, { link: "/profile" });
 
   res.json({
     id: kyc.id, userId: kyc.userId, traderId: user.traderId, email: user.email,

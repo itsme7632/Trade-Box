@@ -32,6 +32,7 @@ export const usersTable = pgTable("users", {
   walletAddressEth: text("wallet_address_eth"),
   walletAddressUsdt: text("wallet_address_usdt"),
   walletAddressBnb: text("wallet_address_bnb"),
+  avatarUrl: text("avatar_url"),
   registrationIp: text("registration_ip"),
   lastLoginIp: text("last_login_ip"),
   sessionVersion: integer("session_version").notNull().default(0),

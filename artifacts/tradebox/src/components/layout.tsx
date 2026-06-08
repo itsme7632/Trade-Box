@@ -90,30 +90,61 @@ function AnnouncementPopup({ user }: { user: { role?: string } | null }) {
   const cfg = announcementTypeColor[popup.type] || announcementTypeColor.information;
   const Icon = announcementTypeIcon[popup.type] || Info;
 
+  const ctaUrl = (popup as any).ctaUrl as string | undefined;
+  const ctaText = (popup as any).ctaText as string | undefined;
+  const imageUrl = (popup as any).imageUrl as string | undefined;
+
   return (
     <>
-      <div onClick={dismiss} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1000, opacity: visible ? 1 : 0, transition: "opacity 0.25s ease", backdropFilter: "blur(2px)" }} />
-      <div style={{ position: "fixed", left: "50%", top: "50%", transform: visible ? "translate(-50%, -50%) scale(1)" : "translate(-50%, -50%) scale(0.93)", opacity: visible ? 1 : 0, transition: "transform 0.25s ease, opacity 0.25s ease", zIndex: 1001, width: "min(400px, calc(100vw - 32px))", background: "var(--tb-bg-card)", borderRadius: "20px", boxShadow: "0 24px 48px rgba(0,0,0,0.25)", overflow: "hidden" }}>
-        <div style={{ height: "4px", background: cfg.icon }} />
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "16px 16px 12px" }}>
-          <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: cfg.bg, border: `1px solid ${cfg.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon size={18} color={cfg.icon} />
+      <div onClick={dismiss} style={{ position: "fixed", inset: 0, background: "rgba(10,14,26,0.55)", zIndex: 1100, opacity: visible ? 1 : 0, transition: "opacity 0.3s ease", backdropFilter: "blur(3px)" }} />
+      <div style={{ position: "fixed", left: "50%", top: "50%", transform: visible ? "translate(-50%, -50%) scale(1)" : "translate(-50%, -50%) scale(0.9)", opacity: visible ? 1 : 0, transition: "transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease", zIndex: 1101, width: "min(460px, calc(100vw - 24px))", background: "var(--tb-bg-card)", borderRadius: "24px", boxShadow: "0 32px 64px rgba(0,0,0,0.32), 0 0 0 1px rgba(255,255,255,0.05)", overflow: "hidden" }}>
+
+        {/* Accent bar */}
+        <div style={{ height: "5px", background: `linear-gradient(90deg, ${cfg.icon}, ${cfg.icon}88)` }} />
+
+        {/* Optional image banner */}
+        {imageUrl && (
+          <div style={{ width: "100%", maxHeight: "180px", overflow: "hidden" }}>
+            <img src={imageUrl} alt="" style={{ width: "100%", objectFit: "cover", display: "block" }} />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ padding: "2px 8px", borderRadius: "20px", fontSize: "9px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em", color: cfg.icon, background: cfg.badgeBg }}>{cfg.badge}</span>
-            <h3 style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>{popup.title}</h3>
+        )}
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "14px", padding: "20px 20px 14px" }}>
+          <div className="tb-popup-icon-bg" style={{ width: "46px", height: "46px", borderRadius: "14px", background: cfg.bg, border: `1.5px solid ${cfg.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 4px 12px ${cfg.icon}22` }}>
+            <Icon size={20} color={cfg.icon} />
           </div>
-          <button onClick={dismiss} style={{ width: "28px", height: "28px", borderRadius: "8px", background: "var(--tb-bg-muted)", border: "1px solid var(--tb-border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "5px" }}>
+              <span style={{ padding: "2px 9px", borderRadius: "20px", fontSize: "9px", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.07em", color: cfg.icon, background: cfg.badgeBg }}>{cfg.badge}</span>
+            </div>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em", lineHeight: 1.3 }}>{popup.title}</h3>
+          </div>
+          <button onClick={dismiss} style={{ width: "30px", height: "30px", borderRadius: "10px", background: "var(--tb-bg-subtle)", border: "1px solid var(--tb-border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: "2px" }}>
             <X size={13} color="var(--tb-text-faint)" />
           </button>
         </div>
-        <div style={{ padding: "0 16px 16px" }}>
-          <p style={{ margin: 0, fontSize: "13px", color: "var(--tb-text-secondary)", lineHeight: 1.65 }}>{popup.message}</p>
-          {popup.expiresAt && <p style={{ margin: "10px 0 0", fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>Expires {new Date(popup.expiresAt).toLocaleDateString()}</p>}
+
+        {/* Body */}
+        <div style={{ padding: "0 20px 18px" }}>
+          <p style={{ margin: 0, fontSize: "14px", color: "var(--tb-text-secondary)", lineHeight: 1.7 }}>{popup.message}</p>
+          {popup.expiresAt && <p style={{ margin: "10px 0 0", fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace", display: "flex", alignItems: "center", gap: "4px" }}>⏱ Expires {new Date(popup.expiresAt).toLocaleDateString()}</p>}
         </div>
-        <div style={{ display: "flex", gap: "8px", padding: "12px 16px", borderTop: "1px solid var(--tb-border-subtle)" }}>
-          <button onClick={dismiss} style={{ flex: 1, height: "40px", borderRadius: "12px", background: "var(--tb-bg-muted)", border: "1px solid var(--tb-border)", fontSize: "13px", fontWeight: 600, color: "var(--tb-text-faint)", cursor: "pointer" }}>Dismiss</button>
-          <button onClick={dismiss} style={{ flex: 1, height: "40px", borderRadius: "12px", background: cfg.icon, border: "none", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: "pointer" }}>Got it →</button>
+
+        {/* Actions */}
+        <div style={{ display: "flex", gap: "8px", padding: "14px 20px 18px", borderTop: "1px solid var(--tb-border-subtle)" }}>
+          <button onClick={dismiss} style={{ flex: "0 0 auto", height: "42px", padding: "0 16px", borderRadius: "12px", background: "var(--tb-bg-subtle)", border: "1px solid var(--tb-border)", fontSize: "13px", fontWeight: 600, color: "var(--tb-text-faint)", cursor: "pointer", whiteSpace: "nowrap" }}>
+            Dismiss
+          </button>
+          {ctaUrl ? (
+            <a href={ctaUrl} target="_blank" rel="noopener noreferrer" onClick={dismiss} style={{ flex: 1, height: "42px", borderRadius: "12px", background: cfg.icon, border: "none", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", textDecoration: "none", boxShadow: `0 4px 14px ${cfg.icon}44` }}>
+              {ctaText || "Learn more"} →
+            </a>
+          ) : (
+            <button onClick={dismiss} style={{ flex: 1, height: "42px", borderRadius: "12px", background: cfg.icon, border: "none", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: "pointer", boxShadow: `0 4px 14px ${cfg.icon}44` }}>
+              {ctaText || "Got it"} →
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -177,8 +208,8 @@ function NotifDrawer({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 199, background: "rgba(0,0,0,0.2)", backdropFilter: "blur(1px)" }} />
-      <div ref={drawerRef} className="notif-drawer" style={{ maxWidth: "480px", right: "auto", left: 0, borderRadius: "0 0 20px 20px" }}>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.25)", backdropFilter: "blur(2px)" }} />
+      <div ref={drawerRef} className="notif-drawer">
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 12px", borderBottom: "1px solid var(--tb-border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

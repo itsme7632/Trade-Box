@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useGetBalance, useGetCryptoAddresses, useGetLedger, useSubmitDeposit, useSubmitWithdrawal } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
+import { Upload, ImageIcon, X as XIcon } from "lucide-react";
+
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 const depositSchema = z.object({
   coin: z.string().min(1),
@@ -34,20 +37,20 @@ function S({ h = 60, r = 10 }: { h?: number; r?: number }) {
 }
 
 const typeColor: Record<string, { text: string; bg: string; sign: string }> = {
-  deposit:         { text: "#059669", bg: "#ecfdf5", sign: "+" },
-  withdrawal:      { text: "#dc2626", bg: "#fef2f2", sign: "-" },
-  delivery_profit: { text: "#059669", bg: "#ecfdf5", sign: "+" },
-  guild_commission:{ text: "#7c3aed", bg: "#f5f3ff", sign: "+" },
-  investment:      { text: "#2563eb", bg: "#eff6ff", sign: "-" },
+  deposit:         { text: "var(--tb-status-green-text)", bg: "var(--tb-status-green-bg)", sign: "+" },
+  withdrawal:      { text: "var(--tb-status-red-text)",   bg: "var(--tb-status-red-bg)",   sign: "-" },
+  delivery_profit: { text: "var(--tb-status-green-text)", bg: "var(--tb-status-green-bg)", sign: "+" },
+  guild_commission:{ text: "var(--tb-status-purple-text)",bg: "var(--tb-status-purple-bg)",sign: "+" },
+  investment:      { text: "var(--tb-status-blue-text)",  bg: "var(--tb-status-blue-bg)",  sign: "-" },
 };
 
 const statusConfig: Record<string, { text: string; bg: string; label: string }> = {
-  cleared:        { text: "#059669", bg: "#ecfdf5", label: "Cleared"  },
-  rejected:       { text: "#dc2626", bg: "#fef2f2", label: "Rejected" },
-  pending:        { text: "#d97706", bg: "#fffbeb", label: "Pending"  },
-  pending_review: { text: "#d97706", bg: "#fffbeb", label: "Review"   },
-  reviewing:      { text: "#0891b2", bg: "#ecfeff", label: "Reviewing"},
-  in_transit:     { text: "#0891b2", bg: "#ecfeff", label: "Transit"  },
+  cleared:        { text: "var(--tb-status-green-text)",  bg: "var(--tb-status-green-bg)",  label: "Cleared"  },
+  rejected:       { text: "var(--tb-status-red-text)",    bg: "var(--tb-status-red-bg)",    label: "Rejected" },
+  pending:        { text: "var(--tb-status-yellow-text)", bg: "var(--tb-status-yellow-bg)", label: "Pending"  },
+  pending_review: { text: "var(--tb-status-yellow-text)", bg: "var(--tb-status-yellow-bg)", label: "Review"   },
+  reviewing:      { text: "var(--tb-status-cyan-text)",   bg: "var(--tb-status-cyan-bg)",   label: "Reviewing"},
+  in_transit:     { text: "var(--tb-status-cyan-text)",   bg: "var(--tb-status-cyan-bg)",   label: "Transit"  },
 };
 
 const networkIcon: Record<string, { emoji: string; color: string }> = {
@@ -95,6 +98,10 @@ export default function Wallet() {
   const [copied, setCopied] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
   const [activeTab, setActiveTab] = useState<"deposit" | "withdraw" | "history">("deposit");
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const proofRef = useRef<HTMLInputElement>(null);
   const depositMutation = useSubmitDeposit();
   const withdrawMutation = useSubmitWithdrawal();
   const { toast } = useToast();
@@ -122,9 +129,49 @@ export default function Wallet() {
     toast({ title: "✓ Address copied to clipboard" });
   };
 
+  const uploadProof = async (file: File) => {
+    setUploadingProof(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+        try {
+          const res = await fetch(`${BASE}/api/upload/proof`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ data: base64, ext }),
+          });
+          if (res.ok) {
+            const { url } = await res.json();
+            setProofUrl(url);
+            setProofPreview(base64);
+            depositForm.setValue("proofUrl", url);
+            toast({ title: "Proof uploaded ✓" });
+          } else {
+            toast({ title: "Upload failed", variant: "destructive" });
+          }
+        } catch {
+          toast({ title: "Upload failed", variant: "destructive" });
+        }
+        setUploadingProof(false);
+      };
+    } catch {
+      setUploadingProof(false);
+      toast({ title: "Upload failed", variant: "destructive" });
+    }
+  };
+
   const onDeposit = (data: z.infer<typeof depositSchema>) => {
-    depositMutation.mutate({ data }, {
-      onSuccess: () => { toast({ title: "Deposit submitted", description: "Our team will review your deposit within 24 hours." }); depositForm.reset(); },
+    depositMutation.mutate({ data: { ...data, proofUrl: proofUrl ?? undefined } }, {
+      onSuccess: () => {
+        toast({ title: "Deposit submitted", description: "Our team will review your deposit within 24 hours." });
+        depositForm.reset();
+        setProofUrl(null);
+        setProofPreview(null);
+      },
       onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" })
     });
   };
@@ -267,21 +314,21 @@ export default function Wallet() {
 
                       {/* Network warnings */}
                       <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <div style={{ display: "flex", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "#fffbeb", border: "1px solid #fde68a" }}>
-                          <AlertCircle size={14} color="#d97706" style={{ flexShrink: 0, marginTop: "1px" }} />
-                          <p style={{ margin: 0, fontSize: "11px", color: "#92400e", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
+                        <div style={{ display: "flex", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "var(--tb-status-yellow-bg)", border: "1px solid var(--tb-status-yellow-border)" }}>
+                          <AlertCircle size={14} color="var(--tb-status-yellow-text)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                          <p style={{ margin: 0, fontSize: "11px", color: "var(--tb-status-yellow-text)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
                             Send ONLY <strong>{currentAddress.coin}</strong> via <strong>{currentAddress.network}</strong>. Wrong network = permanent loss.
                           </p>
                         </div>
-                        <div style={{ display: "flex", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "#eff6ff", border: "1px solid #bfdbfe" }}>
-                          <Info size={14} color="#2563eb" style={{ flexShrink: 0, marginTop: "1px" }} />
-                          <p style={{ margin: 0, fontSize: "11px", color: "#1e40af", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
+                        <div style={{ display: "flex", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "var(--tb-status-blue-bg)", border: "1px solid var(--tb-status-blue-border)" }}>
+                          <Info size={14} color="var(--tb-status-blue-text)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                          <p style={{ margin: 0, fontSize: "11px", color: "var(--tb-status-blue-text)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
                             Minimum deposit: <strong>10 USDT</strong>. Credited after 1–3 network confirmations.
                           </p>
                         </div>
-                        <div style={{ display: "flex", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "#ecfdf5", border: "1px solid #a7f3d0" }}>
-                          <Shield size={14} color="#059669" style={{ flexShrink: 0, marginTop: "1px" }} />
-                          <p style={{ margin: 0, fontSize: "11px", color: "#065f46", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
+                        <div style={{ display: "flex", gap: "8px", padding: "10px 12px", borderRadius: "10px", background: "var(--tb-status-green-bg)", border: "1px solid var(--tb-status-green-border)" }}>
+                          <Shield size={14} color="var(--tb-status-green-text)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                          <p style={{ margin: 0, fontSize: "11px", color: "var(--tb-status-green-text)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.5 }}>
                             After sending, submit your TXID below. Admin review within 24 hours.
                           </p>
                         </div>
@@ -347,6 +394,32 @@ export default function Wallet() {
                       <FormMessage style={{ fontSize: "11px", color: "#dc2626" }} />
                     </FormItem>
                   )} />
+
+                  {/* Proof Upload */}
+                  <div>
+                    <label style={{ display: "block", fontSize: "11px", color: "var(--tb-text-faint)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+                      Payment Proof <span style={{ color: "var(--tb-text-muted)", fontWeight: 400, textTransform: "none" }}>(screenshot / receipt)</span>
+                    </label>
+                    {proofPreview ? (
+                      <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", border: "1.5px solid var(--tb-status-green-border)", background: "var(--tb-status-green-bg)" }}>
+                        <img src={proofPreview} alt="proof" style={{ width: "100%", maxHeight: "160px", objectFit: "cover", display: "block" }} />
+                        <button type="button" onClick={() => { setProofUrl(null); setProofPreview(null); depositForm.setValue("proofUrl", undefined); }} style={{ position: "absolute", top: "8px", right: "8px", width: "26px", height: "26px", borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <XIcon size={12} color="white" />
+                        </button>
+                        <div style={{ padding: "6px 10px", fontSize: "10px", color: "var(--tb-status-green-text)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>✓ Proof uploaded</div>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => proofRef.current?.click()} disabled={uploadingProof} style={{ width: "100%", padding: "16px", borderRadius: "12px", border: "1.5px dashed var(--tb-border-muted)", background: "var(--tb-bg-subtle)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", transition: "all 0.15s" }}>
+                        {uploadingProof ? (
+                          <><div className="shimmer" style={{ width: "24px", height: "24px", borderRadius: "50%" }} /><span style={{ fontSize: "11px", color: "var(--tb-text-muted)" }}>Uploading...</span></>
+                        ) : (
+                          <><ImageIcon size={20} color="var(--tb-text-muted)" /><span style={{ fontSize: "12px", fontWeight: 500, color: "var(--tb-text-secondary)" }}>Click to attach proof</span><span style={{ fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>PNG, JPG, WEBP — max 5MB</span></>
+                        )}
+                      </button>
+                    )}
+                    <input ref={proofRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadProof(f); e.target.value = ""; }} />
+                  </div>
+
                   <button type="submit" disabled={depositMutation.isPending} style={{ height: "44px", borderRadius: "12px", background: "#2563eb", color: "white", border: "none", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", boxShadow: "0 4px 12px rgba(37,99,235,0.3)", opacity: depositMutation.isPending ? 0.6 : 1 }}>
                     {depositMutation.isPending ? "Submitting..." : "Submit Deposit →"}
                   </button>
@@ -363,9 +436,9 @@ export default function Wallet() {
               <h3 style={{ margin: "0 0 16px", fontSize: "15px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif" }}>Withdraw Funds</h3>
 
               {/* Available balance */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: "12px", background: "#eff6ff", border: "1px solid #bfdbfe", marginBottom: "16px" }}>
-                <span style={{ fontSize: "12px", color: "#1e40af", fontFamily: "'JetBrains Mono', monospace" }}>Available</span>
-                <span style={{ fontSize: "14px", fontWeight: 700, color: "#1e40af", fontFamily: "'Space Grotesk', sans-serif" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: "12px", background: "var(--tb-status-blue-bg)", border: "1px solid var(--tb-status-blue-border)", marginBottom: "16px" }}>
+                <span style={{ fontSize: "12px", color: "var(--tb-status-blue-text)", fontFamily: "'JetBrains Mono', monospace" }}>Available</span>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--tb-status-blue-text)", fontFamily: "'Space Grotesk', sans-serif" }}>
                   {(balance?.balance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
                 </span>
               </div>

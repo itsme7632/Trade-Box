@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useGetProfile, useUpdateProfile, useGetBalance } from "@workspace/api-client-react";
 import { useChangePassword } from "@workspace/api-client-react/src/extra-hooks";
 import { useForm } from "react-hook-form";
@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
+
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 // ─── schemas ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +116,10 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
+  useEffect(() => {
+    if ((profile as any)?.avatarUrl && !avatarUrl) setAvatarUrl((profile as any).avatarUrl);
+  }, [profile]);
+
   const profileForm = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
     values: {
@@ -155,9 +161,35 @@ export default function ProfilePage() {
     });
   };
 
-  const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) { setAvatarUrl(URL.createObjectURL(file)); toast({ title: "Photo updated" }); }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+      setAvatarUrl(base64);
+      try {
+        const res = await fetch(`${BASE}/api/upload/avatar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ data: base64, ext }),
+        });
+        if (res.ok) {
+          const { url } = await res.json();
+          setAvatarUrl(url);
+          updateProfile.mutate({ data: { avatarUrl: url } as any }, {
+            onSuccess: () => toast({ title: "Photo updated ✓" }),
+          });
+        } else {
+          toast({ title: "Upload failed", variant: "destructive" });
+        }
+      } catch {
+        toast({ title: "Upload failed", variant: "destructive" });
+      }
+    };
   };
 
   const handleLogout = () => { logout(); setLocation("/login"); };
@@ -214,25 +246,25 @@ export default function ProfilePage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                 <div>
-                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#0f172a", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "180px" }}>
+                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--tb-text-primary)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "180px" }}>
                     {displayName}
                   </h2>
-                  <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--tb-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {profile?.email}
                   </p>
-                  <p style={{ margin: "1px 0 0", fontSize: "10px", color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>
+                  <p style={{ margin: "1px 0 0", fontSize: "10px", color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
                     {profile?.traderId}
                     {(profile as any)?.country && ` · ${(profile as any).country}`}
                   </p>
                 </div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "#ecfdf5" : "#f1f5f9", border: `1px solid ${profile?.twoFactorEnabled ? "#a7f3d0" : "#e2e8f0"}`, flexShrink: 0 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "20px", background: profile?.twoFactorEnabled ? "var(--tb-status-green-bg)" : "var(--tb-bg-subtle)", border: `1px solid ${profile?.twoFactorEnabled ? "var(--tb-status-green-border)" : "var(--tb-border)"}`, flexShrink: 0 }}>
                   {profile?.twoFactorEnabled
-                    ? <><Shield size={10} color="#059669" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#059669", fontFamily: "'JetBrains Mono', monospace" }}>2FA ON</span></>
-                    : <><Shield size={10} color="#94a3b8" /><span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", fontFamily: "'JetBrains Mono', monospace" }}>2FA OFF</span></>
+                    ? <><Shield size={10} color="var(--tb-status-green-text)" /><span style={{ fontSize: "10px", fontWeight: 700, color: "var(--tb-status-green-text)", fontFamily: "'JetBrains Mono', monospace" }}>2FA ON</span></>
+                    : <><Shield size={10} color="var(--tb-text-muted)" /><span style={{ fontSize: "10px", fontWeight: 700, color: "var(--tb-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>2FA OFF</span></>
                   }
                 </div>
               </div>
-              <button onClick={() => setSection("edit")} style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "10px", padding: "6px 12px", borderRadius: "8px", background: "#f1f5f9", border: "1px solid #e2e8f0", fontSize: "11px", fontWeight: 600, color: "#475569", cursor: "pointer" }}>
+              <button onClick={() => setSection("edit")} style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "10px", padding: "6px 12px", borderRadius: "8px", background: "var(--tb-bg-subtle)", border: "1px solid var(--tb-border)", fontSize: "11px", fontWeight: 600, color: "var(--tb-text-secondary)", cursor: "pointer" }}>
                 <Settings size={11} /> Edit Profile
               </button>
             </div>
@@ -250,25 +282,25 @@ export default function ProfilePage() {
 
           {/* Balance strip */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-            <div style={{ padding: "12px 14px", borderRadius: "14px", background: "linear-gradient(135deg, #eff6ff, #dbeafe)", border: "1px solid #bfdbfe" }}>
+            <div className="tb-balance-blue" style={{ padding: "12px 14px", borderRadius: "14px", background: "linear-gradient(135deg, #eff6ff, #dbeafe)", border: "1px solid #bfdbfe" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "5px" }}>
-                <Wallet size={11} color="#2563eb" />
-                <span style={{ fontSize: "9px", fontWeight: 600, color: "#2563eb", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>Available</span>
+                <Wallet size={11} color="var(--tb-status-blue-text)" />
+                <span style={{ fontSize: "9px", fontWeight: 600, color: "var(--tb-status-blue-text)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>Available</span>
               </div>
-              <div style={{ fontSize: "16px", fontWeight: 700, color: "#1e40af", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+              <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--tb-status-blue-text)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
                 {(balance?.balance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div style={{ fontSize: "9px", color: "#3b82f6", fontFamily: "'JetBrains Mono', monospace" }}>USDT balance</div>
+              <div style={{ fontSize: "9px", color: "var(--tb-status-blue-text)", fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>USDT balance</div>
             </div>
-            <div style={{ padding: "12px 14px", borderRadius: "14px", background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", border: "1px solid #a7f3d0" }}>
+            <div className="tb-balance-green" style={{ padding: "12px 14px", borderRadius: "14px", background: "linear-gradient(135deg, #ecfdf5, #d1fae5)", border: "1px solid #a7f3d0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "5px", marginBottom: "5px" }}>
-                <DollarSign size={11} color="#059669" />
-                <span style={{ fontSize: "9px", fontWeight: 600, color: "#059669", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>Total Profit</span>
+                <DollarSign size={11} color="var(--tb-status-green-text)" />
+                <span style={{ fontSize: "9px", fontWeight: 600, color: "var(--tb-status-green-text)", fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>Total Profit</span>
               </div>
-              <div style={{ fontSize: "16px", fontWeight: 700, color: "#065f46", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+              <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--tb-status-green-text)", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
                 +{(profile?.traderStats?.totalProfit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-              <div style={{ fontSize: "9px", color: "#10b981", fontFamily: "'JetBrains Mono', monospace" }}>USDT earned</div>
+              <div style={{ fontSize: "9px", color: "var(--tb-status-green-text)", fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>USDT earned</div>
             </div>
           </div>
         </div>

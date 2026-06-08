@@ -368,10 +368,10 @@
   top: 56px;
   right: 0;
   left: 0;
-  z-index: 200;
+  z-index: 1200;
   background: var(--tb-bg-card);
   border-bottom: 1px solid var(--tb-border);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
   max-height: calc(100dvh - 56px);
   overflow-y: auto;
   animation: slideDown 0.2s ease;
@@ -381,7 +381,12 @@
   .notif-drawer {
     top: 0;
     left: 240px;
-    right: 0;
+    right: auto;
+    width: 420px;
+    max-height: 100dvh;
+    border-right: 1px solid var(--tb-border);
+    border-bottom: none;
+    border-radius: 0 0 20px 0;
   }
 }
 
@@ -424,6 +429,49 @@
   .tb-grid-stats { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* ========== SEMANTIC STATUS COLORS ========== */
+:root {
+  --tb-status-green-bg: #ecfdf5;
+  --tb-status-green-text: #059669;
+  --tb-status-green-border: #a7f3d0;
+  --tb-status-red-bg: #fef2f2;
+  --tb-status-red-text: #dc2626;
+  --tb-status-red-border: #fecaca;
+  --tb-status-blue-bg: #eff6ff;
+  --tb-status-blue-text: #2563eb;
+  --tb-status-blue-border: #bfdbfe;
+  --tb-status-yellow-bg: #fffbeb;
+  --tb-status-yellow-text: #d97706;
+  --tb-status-yellow-border: #fde68a;
+  --tb-status-purple-bg: #f5f3ff;
+  --tb-status-purple-text: #7c3aed;
+  --tb-status-purple-border: #ddd6fe;
+  --tb-status-cyan-bg: #ecfeff;
+  --tb-status-cyan-text: #0891b2;
+  --tb-status-cyan-border: #a5f3fc;
+}
+
+[data-theme="dark"] {
+  --tb-status-green-bg: rgba(5,150,105,0.15);
+  --tb-status-green-text: #4ade80;
+  --tb-status-green-border: rgba(5,150,105,0.3);
+  --tb-status-red-bg: rgba(220,38,38,0.15);
+  --tb-status-red-text: #f87171;
+  --tb-status-red-border: rgba(220,38,38,0.3);
+  --tb-status-blue-bg: rgba(37,99,235,0.15);
+  --tb-status-blue-text: #60a5fa;
+  --tb-status-blue-border: rgba(37,99,235,0.3);
+  --tb-status-yellow-bg: rgba(217,119,6,0.15);
+  --tb-status-yellow-text: #fbbf24;
+  --tb-status-yellow-border: rgba(217,119,6,0.3);
+  --tb-status-purple-bg: rgba(124,58,237,0.15);
+  --tb-status-purple-text: #a78bfa;
+  --tb-status-purple-border: rgba(124,58,237,0.3);
+  --tb-status-cyan-bg: rgba(8,145,178,0.15);
+  --tb-status-cyan-text: #67e8f9;
+  --tb-status-cyan-border: rgba(8,145,178,0.3);
+}
+
 /* ========== DARK MODE OVERRIDES ========== */
 [data-theme="dark"] .shimmer {
   background: linear-gradient(90deg, #161b22 25%, #21262d 50%, #161b22 75%);
@@ -434,6 +482,25 @@
 [data-theme="dark"] [data-slot="select-content"] {
   background: #1c2333 !important;
   border-color: #21262d !important;
+}
+
+/* ========== DARK MODE: hardcoded light-bg overrides ========== */
+/* Auth page tab switcher */
+[data-theme="dark"] [style*="#f8fafc"] {
+  background: var(--tb-bg-subtle) !important;
+}
+/* Wallet / profile balance strips */
+[data-theme="dark"] .tb-balance-blue {
+  background: linear-gradient(135deg, rgba(37,99,235,0.2), rgba(29,78,216,0.15)) !important;
+  border-color: rgba(37,99,235,0.25) !important;
+}
+[data-theme="dark"] .tb-balance-green {
+  background: linear-gradient(135deg, rgba(5,150,105,0.2), rgba(16,185,129,0.15)) !important;
+  border-color: rgba(5,150,105,0.25) !important;
+}
+/* Popup backdrop hardening */
+[data-theme="dark"] .tb-popup-icon-bg {
+  background: rgba(255,255,255,0.08) !important;
 }
 
 @layer utilities {

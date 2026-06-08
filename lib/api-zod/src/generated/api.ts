@@ -519,6 +519,7 @@ export const UpdateProfileBody = zod.object({
   "country": zod.string().nullish(),
   "telegramHandle": zod.string().nullish(),
   "whatsappNumber": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
 })
 
 export const UpdateProfileResponse = zod.object({

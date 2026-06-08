@@ -36,6 +36,7 @@ async function buildProfile(user: typeof usersTable.$inferSelect) {
     country: user.country ?? null,
     telegramHandle: user.telegramHandle ?? null,
     whatsappNumber: user.whatsappNumber ?? null,
+    avatarUrl: user.avatarUrl ?? null,
     twoFactorEnabled: user.twoFactorEnabled,
     darkMode: user.darkMode,
     walletAddresses: {
@@ -67,7 +68,7 @@ router.patch("/", requireAuth, async (req, res) => {
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" }); return;
   }
-  const { firstName, lastName, username, country, telegramHandle, whatsappNumber } = parsed.data;
+  const { firstName, lastName, username, country, telegramHandle, whatsappNumber, avatarUrl } = parsed.data;
 
   const updates: Partial<typeof usersTable.$inferInsert> = {};
   if (telegramHandle !== undefined) updates.telegramHandle = telegramHandle ?? undefined;
@@ -75,6 +76,7 @@ router.patch("/", requireAuth, async (req, res) => {
   if (firstName !== undefined) updates.firstName = firstName ?? undefined;
   if (lastName !== undefined) updates.lastName = lastName ?? undefined;
   if (country !== undefined) updates.country = country ?? undefined;
+  if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl ?? undefined;
   if (username !== undefined) {
     const normalizedUsername = username === "" ? null : (username ?? null);
     if (normalizedUsername) {
